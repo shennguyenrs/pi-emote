@@ -168,12 +168,13 @@ export default function (pi: ExtensionAPI) {
       const transmitSeq = result.sequence.replace("a=T", "a=t");
       // Lightweight placement command with fixed placement ID.
       // Kitty replaces existing placement p=1, so no delete needed.
-      const placeSeq = `\x1b_Ga=p,i=${emoteImageId},p=1,c=${config.size},r=${result.rows},q=2\x1b\\`;
+      // C=1 prevents cursor movement after placement (avoids scrolling at bottom of screen).
+      const placeSeq = `\x1b_Ga=p,i=${emoteImageId},p=1,c=${config.size},r=${result.rows},C=1,q=2\x1b\\`;
 
       // One-shot: upload new data (emitted once per frame change)
       pendingTransmit = transmitSeq;
       // Reusable: lightweight re-place at current cursor position (emitted every render)
-      replotSequence = "\x1b7" + placeSeq + "\x1b8\x1b[0m";
+      replotSequence = placeSeq;
 
       currentLines = [];
       for (let i = 0; i < result.rows; i++) {
