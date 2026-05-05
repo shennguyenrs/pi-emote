@@ -117,6 +117,8 @@ export default function (pi: ExtensionAPI) {
   let tuiRef: TUI | null = null;
   let overlayHandle: OverlayHandle | null = null;
   let currentLines: string[] = [];
+  let pendingTransmit: string | null = null;
+  let replotSequence: string | null = null;
   let lastShownBase64: string | null = null;
   const emoteImageId = allocateImageId();
 
@@ -161,21 +163,25 @@ export default function (pi: ExtensionAPI) {
     });
 
     if (result) {
-      // Delete old image, save cursor, place new image, restore cursor.
-      // Cursor save/restore prevents the Kitty image placement from
-      // moving the cursor and confusing the TUI's line tracking.
-      // Trailing \x1b[0m prevents attribute leaking: the TUI skips
-      // appending its own reset to lines detected as image lines,
-      // so composited base content after the overlay can leak styles.
-      const deleteSeq = deleteKittyImage(emoteImageId);
-      const saveCursor = "\x1b7";
-      const restoreCursor = "\x1b8";
-      currentLines = [deleteSeq + saveCursor + result.sequence + restoreCursor + "\x1b[0m"];
-      // Reserve rows so TUI doesn't overwrite the image area
-      for (let i = 1; i < result.rows; i++) {
+      // Transmit-only: change a=T (transmit+display) to a=t (transmit, no display).
+      // Reusing the same image ID replaces the stored data without deleting.
+      const transmitSeq = result.sequence.replace("a=T", "a=t");
+      // Lightweight placement command with fixed placement ID.
+      // Kitty replaces existing placement p=1, so no delete needed.
+      const placeSeq = `\x1b_Ga=p,i=${emoteImageId},p=1,c=${config.size},r=${result.rows},q=2\x1b\\`;
+
+      // One-shot: upload new data (emitted once per frame change)
+      pendingTransmit = transmitSeq;
+      // Reusable: lightweight re-place at current cursor position (emitted every render)
+      replotSequence = "\x1b7" + placeSeq + "\x1b8\x1b[0m";
+
+      currentLines = [];
+      for (let i = 0; i < result.rows; i++) {
         currentLines.push("");
       }
     } else {
+      pendingTransmit = null;
+      replotSequence = null;
       currentLines = [];
     }
     tuiRef?.requestRender();
@@ -490,7 +496,17 @@ export default function (pi: ExtensionAPI) {
         tuiRef = tui;
         return {
           render(_width: number): string[] {
-            return currentLines;
+            if (currentLines.length === 0) return currentLines;
+            const lines = [...currentLines];
+            if (pendingTransmit) {
+              // Frame changed: delete old + upload new + place
+              lines[0] = pendingTransmit + (replotSequence ?? "");
+              pendingTransmit = null;
+            } else if (replotSequence) {
+              // No frame change: lightweight re-place at current overlay position
+              lines[0] = replotSequence;
+            }
+            return lines;
           },
           invalidate() {},
         };
@@ -514,17 +530,21 @@ export default function (pi: ExtensionAPI) {
     );
 
     // Let overlay initialize, then show hi
-    setTimeout(() => transitionTo("hi"), 50);
+    setTimeout(() => transitionTo("hi"), 500);
   });
 
   pi.on("session_shutdown", async () => {
     clearAllTimers();
+    // Clean up Kitty image data from terminal
+    process.stdout.write(deleteKittyImage(emoteImageId));
     if (overlayHandle) {
       overlayHandle.hide();
       overlayHandle = null;
     }
     tuiRef = null;
     currentLines = [];
+    pendingTransmit = null;
+    replotSequence = null;
   });
 
   pi.on("turn_start", async () => {
