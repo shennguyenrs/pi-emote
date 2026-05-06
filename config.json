@@ -2,6 +2,7 @@
   "enabled": true,
   "size": 8,
   "readingSpeed": 4,
+  "character": "pi",
   "hideBelow": 80,
   "holdDuration": {
     "hi": 2000,
@@ -10,5 +11,17 @@
   },
   "blinkInterval": [2000, 4000],
   "talkTickMs": 100,
-  "cycleMs": 250
+  "cycleMs": 250,
+  "idle": {
+    "default": "idle.png",
+    "blink": "idle_blink.png"
+  },
+  "talk": {
+    "weights": {
+      "talk_close.png": 0.15,
+      "talk_small.png": 0.3,
+      "talk_mid.png": 0.35,
+      "talk_wide.png": 0.2
+    }
+  }
 }

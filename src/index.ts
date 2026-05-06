@@ -38,6 +38,8 @@ interface Config {
   blinkInterval: [number, number];
   talkTickMs: number;
   cycleMs: number;
+  idle?: { default?: string; blink?: string };
+  talk?: { weights?: Record<string, number> };
 }
 
 interface EmotesConfig {
@@ -63,6 +65,15 @@ function loadConfig(extDir: string): Config {
     blinkInterval: [3000, 6000],
     talkTickMs: 120,
     cycleMs: 500,
+    idle: { default: "idle.png", blink: "idle_blink.png" },
+    talk: {
+      weights: {
+        "talk_close.png": 0.15,
+        "talk_small.png": 0.3,
+        "talk_mid.png": 0.35,
+        "talk_wide.png": 0.2,
+      },
+    },
   };
 
   const configPath = join(extDir, "config.json");
@@ -263,8 +274,9 @@ export default function (pi: ExtensionAPI) {
     const frameSet = frameMap.get("talk");
     if (!frameSet || frameSet.files.length === 0) return null;
 
-    if (emotesConfig.talk?.weights) {
-      const file = weightedRandomPick(emotesConfig.talk.weights);
+    const weights = emotesConfig.talk?.weights ?? config.talk?.weights;
+    if (weights) {
+      const file = weightedRandomPick(weights);
       return frameSet.base64Cache.get(file) ?? getRandomFrame("talk");
     }
     return getRandomFrame("talk");
@@ -403,7 +415,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   function enterIdle() {
-    const defaultFile = emotesConfig.idle?.default ?? "idle.png";
+    const defaultFile =
+      emotesConfig.idle?.default ?? config.idle?.default ?? "idle.png";
     const frame = getFrame("idle", defaultFile);
     if (frame) showImage(frame);
     scheduleBlink();
@@ -425,7 +438,8 @@ export default function (pi: ExtensionAPI) {
   }
 
   function doBlink() {
-    const blinkFile = emotesConfig.idle?.blink ?? "idle_blink.png";
+    const blinkFile =
+      emotesConfig.idle?.blink ?? config.idle?.blink ?? "idle_blink.png";
     const blinkFrame = getFrame("idle", blinkFile);
     if (!blinkFrame) {
       scheduleBlink();
@@ -439,7 +453,8 @@ export default function (pi: ExtensionAPI) {
 
     setTimeout(() => {
       if (currentState !== "idle") return;
-      const defaultFile = emotesConfig.idle?.default ?? "idle.png";
+      const defaultFile =
+        emotesConfig.idle?.default ?? config.idle?.default ?? "idle.png";
       const defaultFrame = getFrame("idle", defaultFile);
       if (defaultFrame) showImage(defaultFrame, true);
 
