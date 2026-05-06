@@ -154,6 +154,12 @@ export default function (pi: ExtensionAPI) {
       const update = () => {
         lastBranch = footerData.getGitBranch()
         refreshGit(ctx.cwd, lastBranch)
+        if ('setExtensionStatuses' in renderer) {
+          const r = renderer as any
+          r.setExtensionStatuses(
+            Array.from(footerData.getExtensionStatuses().values()),
+          )
+        }
       }
       update()
       const unsub = footerData.onBranchChange(() => {
@@ -161,7 +167,13 @@ export default function (pi: ExtensionAPI) {
         tui.requestRender()
       })
       return {
-        render: () => [],
+        render: () => {
+          const statuses = Array.from(
+            footerData.getExtensionStatuses().values(),
+          )
+          if (statuses.length === 0) return []
+          return [statuses.join(' ')]
+        },
         invalidate: () => {},
         dispose: unsub,
       }

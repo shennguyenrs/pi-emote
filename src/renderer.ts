@@ -17,6 +17,7 @@ export function createRenderer(config: Config, emoteImageId: number) {
   let lastShownBase64: string | null = null
   let gitBranch: string | null = null
   let gitStats: string | null = null
+  let extensionStatuses: string[] = []
 
   function showImage(base64: string, force = false) {
     if (!force && base64 === lastShownBase64) return
@@ -107,6 +108,11 @@ export function createRenderer(config: Config, emoteImageId: number) {
         combinedLine += ' ' + theme.fg('dim', gitStats)
       }
     }
+
+    if (extensionStatuses.length > 0) {
+      combinedLine += theme.fg('muted', ' · ') + extensionStatuses.join(' ')
+    }
+
     lines.push(combinedLine)
 
     return lines.map((l) => truncateLine(l, width, config.size))
@@ -129,6 +135,10 @@ export function createRenderer(config: Config, emoteImageId: number) {
     setGitInfo: (branch: string | null, stats: string | null) => {
       gitBranch = branch
       gitStats = stats
+      tuiRef?.requestRender()
+    },
+    setExtensionStatuses: (statuses: string[]) => {
+      extensionStatuses = statuses
       tuiRef?.requestRender()
     },
   }
