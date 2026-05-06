@@ -15,6 +15,8 @@ export function createRenderer(config: Config, emoteImageId: number) {
   let pendingTransmit: string | null = null
   let replotSequence: string | null = null
   let lastShownBase64: string | null = null
+  let gitBranch: string | null = null
+  let gitStats: string | null = null
 
   function showImage(base64: string, force = false) {
     if (!force && base64 === lastShownBase64) return
@@ -90,6 +92,23 @@ export function createRenderer(config: Config, emoteImageId: number) {
 
     lines.push(`$${totalCost.toFixed(3)}`)
 
+    // Add CWD & Git Info
+    const home = process.env.HOME
+    let cwd = ctxRef.cwd ?? ''
+    if (home && cwd.startsWith(home)) {
+      cwd = `~${cwd.slice(home.length)}`
+    }
+    let combinedLine = theme.fg('muted', cwd)
+
+    if (gitBranch) {
+      combinedLine +=
+        theme.fg('muted', ' · ') + theme.fg('muted', `(${gitBranch})`)
+      if (gitStats) {
+        combinedLine += ' ' + theme.fg('dim', gitStats)
+      }
+    }
+    lines.push(combinedLine)
+
     return lines.map((l) => truncateLine(l, width, config.size))
   }
 
@@ -107,5 +126,10 @@ export function createRenderer(config: Config, emoteImageId: number) {
     getReplotSequence: () => replotSequence,
     getImageRows: () => imageRows,
     resetLastShown: () => (lastShownBase64 = null),
+    setGitInfo: (branch: string | null, stats: string | null) => {
+      gitBranch = branch
+      gitStats = stats
+      tuiRef?.requestRender()
+    },
   }
 }

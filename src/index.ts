@@ -52,6 +52,25 @@ export default function (pi: ExtensionAPI) {
     renderer,
   )
 
+  let lastBranch: string | null = null
+
+  async function refreshGit(cwd: string, branchOverride?: string | null) {
+    if (!cwd) return
+    try {
+      const branch = branchOverride !== undefined ? branchOverride : lastBranch
+      const statsResult = await pi
+        .exec('git', ['diff', '--shortstat'], { cwd })
+        .catch(() => null)
+      const stats = statsResult?.stdout.trim() || null
+
+      if ('setGitInfo' in renderer) {
+        ;(renderer as any).setGitInfo(branch, stats)
+      }
+    } catch (e) {
+      // ignore git errors
+    }
+  }
+
   function reloadCharacter(character: string) {
     config.character = character
     emotesConfig = loadEmotesConfig(extDir, character)
@@ -98,7 +117,8 @@ export default function (pi: ExtensionAPI) {
             const lines: string[] = []
             lines.push(border)
 
-            for (let i = 0; i < imageRows; i++) {
+            const rowCount = Math.max(imageRows, infoLines.length)
+            for (let i = 0; i < rowCount; i++) {
               let line = ''
               if (i === 0) {
                 line = leftMargin
@@ -115,6 +135,7 @@ export default function (pi: ExtensionAPI) {
               }
               lines.push(line)
             }
+            lines.push(border)
 
             return lines
           },
@@ -128,6 +149,24 @@ export default function (pi: ExtensionAPI) {
       { placement: 'aboveEditor' },
     )
 
+    ctx.ui.setWorkingVisible(false)
+    ctx.ui.setFooter((tui, theme, footerData) => {
+      const update = () => {
+        lastBranch = footerData.getGitBranch()
+        refreshGit(ctx.cwd, lastBranch)
+      }
+      update()
+      const unsub = footerData.onBranchChange(() => {
+        update()
+        tui.requestRender()
+      })
+      return {
+        render: () => [],
+        invalidate: () => {},
+        dispose: unsub,
+      }
+    })
+
     state.setWidgetActive(true)
     setTimeout(() => state.transitionTo('hi'), 500)
   })
@@ -137,6 +176,8 @@ export default function (pi: ExtensionAPI) {
     process.stdout.write(deleteKittyImage(emoteImageId))
     if (ctx.hasUI) {
       ctx.ui.setWidget('emote', undefined)
+      ctx.ui.setWorkingVisible(true)
+      ctx.ui.setFooter(undefined)
     }
     state.setWidgetActive(false)
     renderer.setTui(null)
@@ -220,25 +261,27 @@ export default function (pi: ExtensionAPI) {
     state.onTalkToken(text)
   })
 
-  pi.on('agent_end', async () => {
+  pi.on('agent_end', async (event, ctx) => {
     if (state.getCurrentState() === 'talk') {
       state.endTalk()
     } else if (!['idle', 'hi', 'compact'].includes(state.getCurrentState())) {
       state.transitionTo('idle')
     }
+    refreshGit(ctx.cwd)
   })
 
   pi.on('tool_execution_start', async (event) => {
     state.transitionTo(toolNameToState(event.toolName))
   })
 
-  pi.on('tool_execution_end', async (event) => {
+  pi.on('tool_execution_end', async (event, ctx) => {
     if (event.toolName === 'bash' && event.isError) {
       state.setHoldNextState('read')
       state.transitionTo('failure')
     } else {
       state.transitionTo('read')
     }
+    refreshGit(ctx.cwd)
   })
 
   pi.on('session_before_compact', async () => {
