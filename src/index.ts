@@ -1,17 +1,37 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { type TUI, getCapabilities, getImageDimensions, renderImage, allocateImageId, deleteKittyImage, visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import {
+  type TUI,
+  getCapabilities,
+  getImageDimensions,
+  renderImage,
+  allocateImageId,
+  deleteKittyImage,
+  visibleWidth,
+  truncateToWidth,
+} from "@mariozechner/pi-tui";
+import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // --- Types ---
 
-type EmoteState = "hi" | "idle" | "think" | "talk" | "read" | "write" | "tool" | "success" | "failure" | "compact";
+type EmoteState =
+  | "hi"
+  | "idle"
+  | "think"
+  | "talk"
+  | "read"
+  | "write"
+  | "tool"
+  | "success"
+  | "failure"
+  | "compact";
 
 interface Config {
   enabled: boolean;
   size: number;
   readingSpeed: number;
+  character: string;
   hideBelow: number;
   holdDuration: { hi: number; success: number; failure: number };
   blinkInterval: [number, number];
@@ -40,6 +60,7 @@ function loadConfig(extDir: string): Config {
     enabled: true,
     size: 8,
     readingSpeed: 4,
+    character: "pi",
     hideBelow: 80,
     holdDuration: { hi: 2000, success: 1200, failure: 1200 },
     blinkInterval: [3000, 6000],
@@ -48,24 +69,40 @@ function loadConfig(extDir: string): Config {
   };
 }
 
-function loadEmotesConfig(extDir: string): EmotesConfig {
-  const emotesConfigPath = join(extDir, "emotes", "emotes.json");
+function loadEmotesConfig(extDir: string, character: string): EmotesConfig {
+  const emotesConfigPath = join(extDir, "emotes", character, "emotes.json");
   if (existsSync(emotesConfigPath)) {
     return JSON.parse(readFileSync(emotesConfigPath, "utf-8"));
   }
   return {};
 }
 
-function discoverFrames(extDir: string): Map<string, FrameSet> {
-  const emotesDir = join(extDir, "emotes");
+function discoverFrames(
+  extDir: string,
+  character: string,
+): Map<string, FrameSet> {
+  const characterDir = join(extDir, "emotes", character);
   const frameMap = new Map<string, FrameSet>();
-  const states: EmoteState[] = ["hi", "idle", "think", "talk", "read", "write", "tool", "success", "failure", "compact"];
+  const states: EmoteState[] = [
+    "hi",
+    "idle",
+    "think",
+    "talk",
+    "read",
+    "write",
+    "tool",
+    "success",
+    "failure",
+    "compact",
+  ];
 
   for (const state of states) {
-    const stateDir = join(emotesDir, state);
+    const stateDir = join(characterDir, state);
     if (!existsSync(stateDir)) continue;
 
-    const files = readdirSync(stateDir).filter((f) => f.endsWith(".png")).sort();
+    const files = readdirSync(stateDir)
+      .filter((f) => f.endsWith(".png"))
+      .sort();
     const base64Cache = new Map<string, string>();
 
     for (const file of files) {
@@ -107,8 +144,8 @@ export default function(pi: ExtensionAPI) {
 
   if (!config.enabled) return;
 
-  const emotesConfig = loadEmotesConfig(extDir);
-  const frameMap = discoverFrames(extDir);
+  let emotesConfig = loadEmotesConfig(extDir, config.character);
+  let frameMap = discoverFrames(extDir, config.character);
 
   // Rendering state
   let tuiRef: TUI | null = null;
@@ -150,7 +187,10 @@ export default function(pi: ExtensionAPI) {
     const caps = getCapabilities();
     if (!caps.images) return;
 
-    const dimensions = getImageDimensions(base64, "image/png") ?? { widthPx: 510, heightPx: 510 };
+    const dimensions = getImageDimensions(base64, "image/png") ?? {
+      widthPx: 510,
+      heightPx: 510,
+    };
     const result = renderImage(base64, dimensions, {
       maxWidthCells: config.size,
       imageId: emoteImageId,
@@ -223,20 +263,71 @@ export default function(pi: ExtensionAPI) {
   // --- Timer management ---
 
   function clearAllTimers() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
-    if (talkTimer) { clearInterval(talkTimer); talkTimer = null; }
-    if (cycleTimer) { clearInterval(cycleTimer); cycleTimer = null; }
-    if (talkGapTimer) { clearTimeout(talkGapTimer); talkGapTimer = null; }
-    if (talkDurationTimer) { clearTimeout(talkDurationTimer); talkDurationTimer = null; }
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    if (blinkTimer) {
+      clearTimeout(blinkTimer);
+      blinkTimer = null;
+    }
+    if (talkTimer) {
+      clearInterval(talkTimer);
+      talkTimer = null;
+    }
+    if (cycleTimer) {
+      clearInterval(cycleTimer);
+      cycleTimer = null;
+    }
+    if (talkGapTimer) {
+      clearTimeout(talkGapTimer);
+      talkGapTimer = null;
+    }
+    if (talkDurationTimer) {
+      clearTimeout(talkDurationTimer);
+      talkDurationTimer = null;
+    }
   }
 
   function clearStateTimers() {
-    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-    if (talkTimer) { clearInterval(talkTimer); talkTimer = null; }
-    if (cycleTimer) { clearInterval(cycleTimer); cycleTimer = null; }
-    if (talkGapTimer) { clearTimeout(talkGapTimer); talkGapTimer = null; }
-    if (talkDurationTimer) { clearTimeout(talkDurationTimer); talkDurationTimer = null; }
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    if (talkTimer) {
+      clearInterval(talkTimer);
+      talkTimer = null;
+    }
+    if (cycleTimer) {
+      clearInterval(cycleTimer);
+      cycleTimer = null;
+    }
+    if (talkGapTimer) {
+      clearTimeout(talkGapTimer);
+      talkGapTimer = null;
+    }
+    if (talkDurationTimer) {
+      clearTimeout(talkDurationTimer);
+      talkDurationTimer = null;
+    }
+  }
+
+  function reloadCharacter(character: string) {
+    config.character = character;
+    emotesConfig = loadEmotesConfig(extDir, character);
+    frameMap = discoverFrames(extDir, character);
+
+    // Save choice to config.json
+    try {
+      const configPath = join(extDir, "config.json");
+      writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+      // ignore write errors
+    }
+
+    clearAllTimers();
+    lastShownBase64 = null; // Force re-render
+    transitionTo("hi");
   }
 
   // --- State transitions ---
@@ -251,16 +342,32 @@ export default function(pi: ExtensionAPI) {
     currentState = state;
 
     switch (state) {
-      case "hi": enterHi(); break;
-      case "idle": enterIdle(); break;
+      case "hi":
+        enterHi();
+        break;
+      case "idle":
+        enterIdle();
+        break;
       case "think":
       case "read":
       case "write":
-      case "tool": enterCycle(state); break;
-      case "talk": enterTalk(); break;
-      case "success": enterHold(state, config.holdDuration.success, holdNextState); holdNextState = "idle"; break;
-      case "failure": enterHold(state, config.holdDuration.failure, holdNextState); holdNextState = "idle"; break;
-      case "compact": enterCompact(); break;
+      case "tool":
+        enterCycle(state);
+        break;
+      case "talk":
+        enterTalk();
+        break;
+      case "success":
+        enterHold(state, config.holdDuration.success, holdNextState);
+        holdNextState = "idle";
+        break;
+      case "failure":
+        enterHold(state, config.holdDuration.failure, holdNextState);
+        holdNextState = "idle";
+        break;
+      case "compact":
+        enterCompact();
+        break;
     }
   }
 
@@ -278,8 +385,14 @@ export default function(pi: ExtensionAPI) {
   }
 
   function scheduleBlink() {
-    if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
-    const delay = randomInRange(config.blinkInterval[0], config.blinkInterval[1]);
+    if (blinkTimer) {
+      clearTimeout(blinkTimer);
+      blinkTimer = null;
+    }
+    const delay = randomInRange(
+      config.blinkInterval[0],
+      config.blinkInterval[1],
+    );
     blinkTimer = setTimeout(() => {
       if (currentState !== "idle") return;
       doBlink();
@@ -289,7 +402,10 @@ export default function(pi: ExtensionAPI) {
   function doBlink() {
     const blinkFile = emotesConfig.idle?.blink ?? "idle_blink.png";
     const blinkFrame = getFrame("idle", blinkFile);
-    if (!blinkFrame) { scheduleBlink(); return; }
+    if (!blinkFrame) {
+      scheduleBlink();
+      return;
+    }
 
     showImage(blinkFrame);
 
@@ -351,7 +467,10 @@ export default function(pi: ExtensionAPI) {
     }
 
     // Reset gap timer
-    if (talkGapTimer) { clearTimeout(talkGapTimer); talkGapTimer = null; }
+    if (talkGapTimer) {
+      clearTimeout(talkGapTimer);
+      talkGapTimer = null;
+    }
     talkGapTimer = setTimeout(() => {
       if (currentState !== "talk") return;
       talkMouthClosed = true;
@@ -362,7 +481,10 @@ export default function(pi: ExtensionAPI) {
   }
 
   function recalculateTalkDuration() {
-    if (talkDurationTimer) { clearTimeout(talkDurationTimer); talkDurationTimer = null; }
+    if (talkDurationTimer) {
+      clearTimeout(talkDurationTimer);
+      talkDurationTimer = null;
+    }
 
     const targetDurationMs = (talkWordCount / config.readingSpeed) * 1000;
     const elapsed = Date.now() - talkStartTime;
@@ -411,7 +533,11 @@ export default function(pi: ExtensionAPI) {
     }, config.cycleMs);
   }
 
-  function enterHold(state: EmoteState, duration: number, nextState: EmoteState = "idle") {
+  function enterHold(
+    state: EmoteState,
+    duration: number,
+    nextState: EmoteState = "idle",
+  ) {
     const frame = getRandomFrame(state);
     if (frame) showImage(frame);
     holdTimer = setTimeout(() => transitionTo(nextState), duration);
@@ -426,10 +552,13 @@ export default function(pi: ExtensionAPI) {
 
   function toolNameToState(toolName: string): EmoteState {
     switch (toolName) {
-      case "read": return "read";
+      case "read":
+        return "read";
       case "write":
-      case "edit": return "write";
-      default: return "tool";
+      case "edit":
+        return "write";
+      default:
+        return "tool";
     }
   }
 
@@ -478,7 +607,9 @@ export default function(pi: ExtensionAPI) {
           totalCost += entry.message.usage?.cost?.total ?? 0;
         }
       }
-    } catch (_) { /* ignore if not available */ }
+    } catch (_) {
+      /* ignore if not available */
+    }
 
     if (totalInput || totalOutput) {
       lines.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`);
@@ -488,8 +619,9 @@ export default function(pi: ExtensionAPI) {
 
     // Truncate lines to fit available width
     const infoWidth = width - config.size - 5; // 5 = " " (left pad) + " │ " (separator)
-    return lines.map(l => {
-      if (visibleWidth(l) > infoWidth) return truncateToWidth(l, infoWidth, "…");
+    return lines.map((l) => {
+      if (visibleWidth(l) > infoWidth)
+        return truncateToWidth(l, infoWidth, "…");
       return l;
     });
   }
@@ -507,60 +639,65 @@ export default function(pi: ExtensionAPI) {
     ctxRef = ctx;
 
     // Create widget above the editor (JRPG-style portrait beside stats panel)
-    ctx.ui.setWidget("emote", (tui, theme) => {
-      tuiRef = tui;
-      return {
-        render(width: number): string[] {
-          // Hide when terminal is too narrow
-          if (width < config.hideBelow) return [];
-          if (imageRows === 0) return [];
+    ctx.ui.setWidget(
+      "emote",
+      (tui, theme) => {
+        tuiRef = tui;
+        return {
+          render(width: number): string[] {
+            // Hide when terminal is too narrow
+            if (width < config.hideBelow) return [];
+            if (imageRows === 0) return [];
 
-          // Use the same border color as the prompt bar (thinking-level aware)
-          const thinkingLevel = pi.getThinkingLevel?.() ?? "high";
-          const borderColor = (theme as any).getThinkingBorderColor?.(thinkingLevel)
-            ?? ((s: string) => theme.fg("border", s));
-          const border = borderColor("─".repeat(width));
-          const sep = borderColor("│");
-          const leftMargin = " "; // left padding for image
-          const avatarPad = " ".repeat(config.size); // image area placeholder
-          const infoLines = buildInfoLines(width, theme);
+            // Use the same border color as the prompt bar (thinking-level aware)
+            const thinkingLevel = pi.getThinkingLevel?.() ?? "high";
+            const borderColor =
+              (theme as any).getThinkingBorderColor?.(thinkingLevel) ??
+              ((s: string) => theme.fg("border", s));
+            const border = borderColor("─".repeat(width));
+            const sep = borderColor("│");
+            const leftMargin = " "; // left padding for image
+            const avatarPad = " ".repeat(config.size); // image area placeholder
+            const infoLines = buildInfoLines(width, theme);
 
-          const lines: string[] = [];
+            const lines: string[] = [];
 
-          // Top border
-          lines.push(border);
+            // Top border
+            lines.push(border);
 
-          // Image rows with info panel
-          for (let i = 0; i < imageRows; i++) {
-            let line = "";
-            if (i === 0) {
-              // First row: left margin + Kitty placement (image starts at col 1)
-              line = leftMargin;
-              if (pendingTransmit) {
-                line += pendingTransmit + (replotSequence ?? "");
-                pendingTransmit = null;
-              } else if (replotSequence) {
-                line += replotSequence;
+            // Image rows with info panel
+            for (let i = 0; i < imageRows; i++) {
+              let line = "";
+              if (i === 0) {
+                // First row: left margin + Kitty placement (image starts at col 1)
+                line = leftMargin;
+                if (pendingTransmit) {
+                  line += pendingTransmit + (replotSequence ?? "");
+                  pendingTransmit = null;
+                } else if (replotSequence) {
+                  line += replotSequence;
+                }
+                line += `${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+              } else {
+                // Subsequent rows: left margin + avatar space + separator + info
+                line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
               }
-              line += `${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
-            } else {
-              // Subsequent rows: left margin + avatar space + separator + info
-              line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ""}`;
+              lines.push(line);
             }
-            lines.push(line);
-          }
 
-          // No bottom border — the editor's own top border serves as separator
+            // No bottom border — the editor's own top border serves as separator
 
-          return lines;
-        },
-        invalidate() { },
-        dispose() {
-          tuiRef = null;
-          ctxRef = null;
-        },
-      };
-    }, { placement: "aboveEditor" });
+            return lines;
+          },
+          invalidate() { },
+          dispose() {
+            tuiRef = null;
+            ctxRef = null;
+          },
+        };
+      },
+      { placement: "aboveEditor" },
+    );
 
     widgetActive = true;
 
@@ -582,6 +719,37 @@ export default function(pi: ExtensionAPI) {
     replotSequence = null;
   });
 
+  pi.registerCommand("emote", {
+    description: "Switch between emote characters",
+    handler: async (args, ctx) => {
+      const parts = (args || "").trim().split(/\s+/);
+      const subCommand = parts[0];
+
+      if (subCommand === "switch") {
+        const emotesDir = join(extDir, "emotes");
+        const characters = readdirSync(emotesDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory() && d.name !== "_unused")
+          .map((d) => d.name);
+
+        if (characters.length === 0) {
+          ctx.ui.notify("No characters found in emotes/ folder", "error");
+          return;
+        }
+
+        const selection = await ctx.ui.select(
+          "Switch Emote Character",
+          characters,
+        );
+        if (selection) {
+          reloadCharacter(selection);
+          ctx.ui.notify(`Switched to character: ${selection}`, "info");
+        }
+      } else {
+        ctx.ui.notify("Usage: /emote switch", "info");
+      }
+    },
+  });
+
   pi.on("turn_start", async () => {
     // Don't transition to think here — wait for actual thinking tokens.
     // Keep showing the current state (last action / idle).
@@ -596,7 +764,10 @@ export default function(pi: ExtensionAPI) {
     if (!streamEvent) return;
 
     // Transition to think when actual thinking tokens arrive
-    if (streamEvent.type === "thinking_start" || streamEvent.type === "thinking_delta") {
+    if (
+      streamEvent.type === "thinking_start" ||
+      streamEvent.type === "thinking_delta"
+    ) {
       if (currentState !== "think") {
         transitionTo("think");
       }
@@ -630,7 +801,11 @@ export default function(pi: ExtensionAPI) {
     if (!widgetActive) return;
     if (currentState === "talk") {
       endTalk();
-    } else if (currentState !== "idle" && currentState !== "hi" && currentState !== "compact") {
+    } else if (
+      currentState !== "idle" &&
+      currentState !== "hi" &&
+      currentState !== "compact"
+    ) {
       transitionTo("idle");
     }
   });
