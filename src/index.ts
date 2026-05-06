@@ -21,7 +21,6 @@ interface Config {
 
 interface EmotesConfig {
   idle?: { default?: string; blink?: string };
-  think?: { default?: string; hard?: string };
   talk?: { weights?: Record<string, number> };
 }
 
@@ -101,7 +100,7 @@ function randomInRange(min: number, max: number): number {
 
 // --- Extension ---
 
-export default function (pi: ExtensionAPI) {
+export default function(pi: ExtensionAPI) {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const extDir = dirname(__dirname);
   const config = loadConfig(extDir);
@@ -129,10 +128,6 @@ export default function (pi: ExtensionAPI) {
   let cycleTimer: ReturnType<typeof setInterval> | null = null;
   let cycleIndex = 0;
   let cycleDirection = 1;
-
-  // Think animation state
-  let thinkTimer: ReturnType<typeof setTimeout> | null = null;
-  let thinkBaseFrame: string | null = null;
 
   // Hold state: what to transition to after hold expires
   let holdNextState: EmoteState = "idle";
@@ -234,7 +229,6 @@ export default function (pi: ExtensionAPI) {
     if (cycleTimer) { clearInterval(cycleTimer); cycleTimer = null; }
     if (talkGapTimer) { clearTimeout(talkGapTimer); talkGapTimer = null; }
     if (talkDurationTimer) { clearTimeout(talkDurationTimer); talkDurationTimer = null; }
-    if (thinkTimer) { clearTimeout(thinkTimer); thinkTimer = null; }
   }
 
   function clearStateTimers() {
@@ -243,7 +237,6 @@ export default function (pi: ExtensionAPI) {
     if (cycleTimer) { clearInterval(cycleTimer); cycleTimer = null; }
     if (talkGapTimer) { clearTimeout(talkGapTimer); talkGapTimer = null; }
     if (talkDurationTimer) { clearTimeout(talkDurationTimer); talkDurationTimer = null; }
-    if (thinkTimer) { clearTimeout(thinkTimer); thinkTimer = null; }
   }
 
   // --- State transitions ---
@@ -260,11 +253,11 @@ export default function (pi: ExtensionAPI) {
     switch (state) {
       case "hi": enterHi(); break;
       case "idle": enterIdle(); break;
-      case "think": enterThink(); break;
-      case "talk": enterTalk(); break;
+      case "think":
       case "read":
       case "write":
       case "tool": enterCycle(state); break;
+      case "talk": enterTalk(); break;
       case "success": enterHold(state, config.holdDuration.success, holdNextState); holdNextState = "idle"; break;
       case "failure": enterHold(state, config.holdDuration.failure, holdNextState); holdNextState = "idle"; break;
       case "compact": enterCompact(); break;
@@ -323,37 +316,6 @@ export default function (pi: ExtensionAPI) {
         scheduleBlink();
       }
     }, blinkDuration);
-  }
-
-  function enterThink() {
-    const defaultFile = emotesConfig.think?.default ?? "think.png";
-    thinkBaseFrame = getFrame("think", defaultFile);
-    if (thinkBaseFrame) showImage(thinkBaseFrame);
-    scheduleThinkSwap();
-  }
-
-  function scheduleThinkSwap() {
-    if (thinkTimer) { clearTimeout(thinkTimer); thinkTimer = null; }
-    const delay = randomInRange(config.blinkInterval[0], config.blinkInterval[1]);
-    thinkTimer = setTimeout(() => {
-      if (currentState !== "think") return;
-      doThinkSwap();
-    }, delay);
-  }
-
-  function doThinkSwap() {
-    const hardFile = emotesConfig.think?.hard ?? "think_hard.png";
-    const hardFrame = getFrame("think", hardFile);
-    if (!hardFrame) { scheduleThinkSwap(); return; }
-
-    showImage(hardFrame, true);
-
-    // Hold hard-think briefly, then return to default
-    setTimeout(() => {
-      if (currentState !== "think") return;
-      if (thinkBaseFrame) showImage(thinkBaseFrame, true);
-      scheduleThinkSwap();
-    }, 800);
   }
 
   function enterTalk() {
@@ -592,7 +554,7 @@ export default function (pi: ExtensionAPI) {
 
           return lines;
         },
-        invalidate() {},
+        invalidate() { },
         dispose() {
           tuiRef = null;
           ctxRef = null;
