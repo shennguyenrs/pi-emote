@@ -12,6 +12,7 @@ import {
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 
 // --- Types ---
 
@@ -52,11 +53,7 @@ interface FrameSet {
 // --- Helpers ---
 
 function loadConfig(extDir: string): Config {
-  const configPath = join(extDir, "config.json");
-  if (existsSync(configPath)) {
-    return JSON.parse(readFileSync(configPath, "utf-8"));
-  }
-  return {
+  const defaults: Config = {
     enabled: true,
     size: 8,
     readingSpeed: 4,
@@ -67,10 +64,36 @@ function loadConfig(extDir: string): Config {
     talkTickMs: 120,
     cycleMs: 500,
   };
+
+  const configPath = join(extDir, "config.json");
+  if (existsSync(configPath)) {
+    try {
+      const userConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+      return { ...defaults, ...userConfig };
+    } catch (e) {
+      // ignore parse errors and return defaults
+    }
+  }
+  return defaults;
+}
+
+const globalEmotesDir = join(homedir(), ".pi", "agent", "emote");
+
+function getCharacterDir(extDir: string, character: string): string | null {
+  const globalPath = join(globalEmotesDir, character);
+  if (existsSync(globalPath)) return globalPath;
+
+  const localPath = join(extDir, "emotes", character);
+  if (existsSync(localPath)) return localPath;
+
+  return null;
 }
 
 function loadEmotesConfig(extDir: string, character: string): EmotesConfig {
-  const emotesConfigPath = join(extDir, "emotes", character, "emotes.json");
+  const characterDir = getCharacterDir(extDir, character);
+  if (!characterDir) return {};
+
+  const emotesConfigPath = join(characterDir, "emotes.json");
   if (existsSync(emotesConfigPath)) {
     return JSON.parse(readFileSync(emotesConfigPath, "utf-8"));
   }
@@ -81,8 +104,10 @@ function discoverFrames(
   extDir: string,
   character: string,
 ): Map<string, FrameSet> {
-  const characterDir = join(extDir, "emotes", character);
+  const characterDir = getCharacterDir(extDir, character);
   const frameMap = new Map<string, FrameSet>();
+  if (!characterDir) return frameMap;
+
   const states: EmoteState[] = [
     "hi",
     "idle",
@@ -137,7 +162,7 @@ function randomInRange(min: number, max: number): number {
 
 // --- Extension ---
 
-export default function(pi: ExtensionAPI) {
+export default function (pi: ExtensionAPI) {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const extDir = dirname(__dirname);
   const config = loadConfig(extDir);
@@ -689,7 +714,7 @@ export default function(pi: ExtensionAPI) {
 
             return lines;
           },
-          invalidate() { },
+          invalidate() {},
           dispose() {
             tuiRef = null;
             ctxRef = null;
@@ -726,13 +751,23 @@ export default function(pi: ExtensionAPI) {
       const subCommand = parts[0];
 
       if (subCommand === "switch") {
-        const emotesDir = join(extDir, "emotes");
-        const characters = readdirSync(emotesDir, { withFileTypes: true })
-          .filter((d) => d.isDirectory() && d.name !== "_unused")
-          .map((d) => d.name);
+        const localEmotesDir = join(extDir, "emotes");
+        const getChars = (dir: string) => {
+          if (!existsSync(dir)) return [];
+          return readdirSync(dir, { withFileTypes: true })
+            .filter((d) => d.isDirectory() && d.name !== "_unused")
+            .map((d) => d.name);
+        };
+
+        const characters = Array.from(
+          new Set([...getChars(localEmotesDir), ...getChars(globalEmotesDir)]),
+        ).sort();
 
         if (characters.length === 0) {
-          ctx.ui.notify("No characters found in emotes/ folder", "error");
+          ctx.ui.notify(
+            "No characters found in local or global emotes/ folder",
+            "error",
+          );
           return;
         }
 
