@@ -4,6 +4,18 @@
   "description": "CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
   "author": "CGx <31814150+cgxeiji@users.noreply.github.com>",
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "^0.73.0",
+    "@mariozechner/pi-tui": "^0.73.0",
+    "@types/node": "^25.6.0",
+    "oxfmt": "^0.48.0"
   }
 }
