@@ -4,7 +4,8 @@ import { homedir } from 'node:os'
 import type { Config, EmotesConfig } from './types'
 
 const home = homedir()
-const globalEmotesDir = home ? join(home, '.pi', 'agent', 'emote') : ''
+export const localEmotesDir = join(process.cwd(), '.pi', 'emote')
+export const globalEmotesDir = home ? join(home, '.pi', 'agent', 'emote') : ''
 
 export function loadConfig(extDir: string): Config {
   const defaults: Config = {
@@ -28,25 +29,48 @@ export function loadConfig(extDir: string): Config {
     },
   }
 
-  if (!extDir) return defaults
+  const configPaths = [
+    join(localEmotesDir, 'config.json'),
+    ...(globalEmotesDir ? [join(globalEmotesDir, 'config.json')] : []),
+    ...(extDir ? [join(extDir, 'config.json')] : []),
+  ]
 
-  const configPath = join(extDir, 'config.json')
-  if (existsSync(configPath)) {
-    try {
-      const userConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
-      return { ...defaults, ...userConfig }
-    } catch (e) {
-      // ignore parse errors and return defaults
+  for (const configPath of configPaths) {
+    if (existsSync(configPath)) {
+      try {
+        const userConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
+        return { ...defaults, ...userConfig }
+      } catch (e) {
+        // ignore parse errors and try next
+      }
     }
   }
+
   return defaults
 }
 
 export function saveConfig(extDir: string, config: Config) {
-  if (!extDir) return
+  const possiblePaths = [
+    join(localEmotesDir, 'config.json'),
+    ...(globalEmotesDir ? [join(globalEmotesDir, 'config.json')] : []),
+    join(extDir, 'config.json'),
+  ]
+
+  let targetPath = join(extDir, 'config.json')
+
+  for (const p of possiblePaths) {
+    if (existsSync(p)) {
+      targetPath = p
+      break
+    }
+  }
+
+  if (!existsSync(targetPath) && existsSync(localEmotesDir)) {
+    targetPath = join(localEmotesDir, 'config.json')
+  }
+
   try {
-    const configPath = join(extDir, 'config.json')
-    writeFileSync(configPath, JSON.stringify(config, null, 2))
+    writeFileSync(targetPath, JSON.stringify(config, null, 2))
   } catch (e) {
     // ignore write errors
   }
@@ -58,14 +82,21 @@ export function getCharacterDir(
 ): string | null {
   if (!character) return null
 
+  // 1. Local (.pi/emote)
+  const localPath = join(localEmotesDir, character)
+  if (existsSync(localPath)) return localPath
+
+  // 2. Global (~/.pi/agent/emote)
   if (globalEmotesDir) {
     const globalPath = join(globalEmotesDir, character)
     if (existsSync(globalPath)) return globalPath
   }
 
-  if (!extDir) return null
-  const localPath = join(extDir, 'emotes', character)
-  if (existsSync(localPath)) return localPath
+  // 3. Extension Default
+  if (extDir) {
+    const extPath = join(extDir, 'emotes', character)
+    if (existsSync(extPath)) return extPath
+  }
 
   return null
 }

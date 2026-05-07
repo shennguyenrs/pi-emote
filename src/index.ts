@@ -3,13 +3,17 @@ import {
   getCapabilities,
   allocateImageId,
   deleteKittyImage,
-  visibleWidth,
-  type TUI,
 } from '@mariozechner/pi-tui'
 import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadConfig, loadEmotesConfig, saveConfig } from './config'
+import {
+  loadConfig,
+  loadEmotesConfig,
+  saveConfig,
+  localEmotesDir,
+  globalEmotesDir,
+} from './config'
 import { discoverFrames } from './assets'
 import { createRenderer } from './renderer'
 import { createEmoteState } from './state'
@@ -203,23 +207,25 @@ export default function (pi: ExtensionAPI) {
       const subCommand = parts[0]
 
       if (subCommand === 'switch') {
-        const localEmotesDir = join(extDir, 'emotes')
-        const globalEmotesDir = join(
-          dirname(dirname(localEmotesDir)),
-          '.pi',
-          'agent',
-          'emote',
-        ) // Simplified global path discovery
+        const extEmotesDir = join(extDir, 'emotes')
 
         const getChars = (dir: string) => {
-          if (!existsSync(dir)) return []
-          return readdirSync(dir, { withFileTypes: true })
-            .filter((d) => d.isDirectory() && d.name !== '_unused')
-            .map((d) => d.name)
+          if (!dir || !existsSync(dir)) return []
+          try {
+            return readdirSync(dir, { withFileTypes: true })
+              .filter((d) => d.isDirectory() && d.name !== '_unused')
+              .map((d) => d.name)
+          } catch (e) {
+            return []
+          }
         }
 
         const characters = Array.from(
-          new Set([...getChars(localEmotesDir), ...getChars(globalEmotesDir)]),
+          new Set([
+            ...getChars(localEmotesDir),
+            ...getChars(globalEmotesDir),
+            ...getChars(extEmotesDir),
+          ]),
         ).sort()
 
         if (characters.length === 0) {

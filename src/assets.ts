@@ -86,7 +86,7 @@ export function getTalkCloseFrame(
 ): string | null {
   const frameSet = frameMap.get('talk')
   if (!frameSet) return null
-  const closeFile = frameSet.files.find((f) => f.includes('close'))
+  const closeFile = frameSet.files.find((f: string) => f.includes('close'))
   if (closeFile) return frameSet.base64Cache.get(closeFile) ?? null
   return frameSet.base64Cache.get(frameSet.files[0]!) ?? null
 }
