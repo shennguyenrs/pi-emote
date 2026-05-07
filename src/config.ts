@@ -114,3 +114,18 @@ export function loadEmotesConfig(
   }
   return {}
 }
+
+export function getEffectiveCharacter(
+  extDir: string,
+  config: Config,
+  modelName?: string,
+): string {
+  if (modelName && config.modelCharacters?.[modelName]) {
+    const preferred = config.modelCharacters[modelName]
+    // Verify the character exists
+    if (getCharacterDir(extDir, preferred)) {
+      return preferred
+    }
+  }
+  return config.character
+}

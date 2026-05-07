@@ -15,6 +15,7 @@ export interface Config {
   size: number
   readingSpeed: number
   character: string
+  modelCharacters?: Record<string, string>
   hideBelow: number
   holdDuration: { hi: number; success: number; failure: number }
   blinkInterval: [number, number]

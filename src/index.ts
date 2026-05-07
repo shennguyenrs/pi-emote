@@ -13,6 +13,7 @@ import {
   saveConfig,
   localEmotesDir,
   globalEmotesDir,
+  getEffectiveCharacter,
 } from './config'
 import { discoverFrames } from './assets'
 import { createRenderer } from './renderer'
@@ -46,6 +47,7 @@ export default function (pi: ExtensionAPI) {
 
   let emotesConfig = loadEmotesConfig(extDir, config.character)
   let frameMap = discoverFrames(extDir, config.character)
+  let loadedCharacter = config.character
 
   const emoteImageId = allocateImageId()
   const renderer = createRenderer(config, emoteImageId)
@@ -55,6 +57,13 @@ export default function (pi: ExtensionAPI) {
     () => frameMap,
     renderer,
   )
+
+  function loadCharacterAssets(character: string) {
+    if (loadedCharacter === character) return
+    emotesConfig = loadEmotesConfig(extDir, character)
+    frameMap = discoverFrames(extDir, character)
+    loadedCharacter = character
+  }
 
   let lastBranch: string | null = null
 
@@ -77,8 +86,7 @@ export default function (pi: ExtensionAPI) {
 
   function reloadCharacter(character: string) {
     config.character = character
-    emotesConfig = loadEmotesConfig(extDir, character)
-    frameMap = discoverFrames(extDir, character)
+    loadCharacterAssets(character)
 
     saveConfig(extDir, config)
 
@@ -94,6 +102,12 @@ export default function (pi: ExtensionAPI) {
 
     const caps = getCapabilities()
     if (!caps.images) return
+
+    const effectiveChar = getEffectiveCharacter(extDir, config, ctx.model?.name)
+    if (effectiveChar !== loadedCharacter) {
+      loadCharacterAssets(effectiveChar)
+      renderer.resetLastShown()
+    }
 
     state.clearAllTimers()
     renderer.setCtx(ctx)
