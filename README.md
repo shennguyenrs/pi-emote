@@ -9,7 +9,7 @@ Requires a Kitty-graphics-capable terminal.
 ## Install
 
 ```bash
-pi install git:github.com/cgxeiji/pi-emote
+pi install git:github.com/shennguyenrs/pi-emote
 ```
 
 ## States
@@ -92,6 +92,19 @@ Place PNGs into `~/.pi/agent/emote/<character>/<state>/`. The extension auto-dis
 ### Structure:
 
 `~/.pi/agent/emote/<character>/<state>/<frame>.png`
+
+### Creating New Characters
+
+To help you create consistent multi-frame emotes for new characters, we provide two resources:
+
+1.  **[EXAMPLE_PROMPT.md](./EXAMPLE_PROMPT.md):** The original prompts used to generate the a custom character. Use these as a reference for Image-to-Image generation.
+2.  **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template with placeholders (like `{{STYLE_ADJECTIVE}}`, `{{VFX_PRIMARY}}`) that you can fill out to generate emotes for any character style (e.g., Cyberpunk, Gothic, Kawaii).
+
+**Recommended Workflow:**
+1.  Choose or create a **Base Character** image.
+2.  Use the prompts in the template/prompts files with an Image-to-Image model (like Midjourney, DALL-E 3, or Stable Diffusion).
+3.  Generate 4-frame sprite sheets for each state.
+4.  Crop and save the frames into the appropriate folders.
 
 ### Optional Config:
 
