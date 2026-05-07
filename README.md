@@ -36,6 +36,11 @@ pi install git:github.com/cgxeiji/pi-emote
   "enabled": true,
   "size": 8,
   "readingSpeed": 4,
+  "character": "pi",
+  "modelCharacters": {
+    "gpt-4o": "compact",
+    "claude-3.5-sonnet": "pi"
+  },
   "hideBelow": 80,
   "holdDuration": { "hi": 2000, "success": 1200, "failure": 1200 },
   "blinkInterval": [3000, 6000],
@@ -55,6 +60,8 @@ pi install git:github.com/cgxeiji/pi-emote
 
 - `size` — image width/height in terminal cells
 - `readingSpeed` — words/sec, controls how long talk mouth stays open after tokens stop
+- `character` — global default character name
+- `modelCharacters` — a map of model names to character names (e.g., `"gpt-4o": "compact"`)
 - `hideBelow` — hide emote when terminal is narrower than this many columns
 - `idle` & `talk` — global default animation settings for all characters
 
@@ -67,10 +74,16 @@ The extension scans two locations for characters:
 
 If a character exists in both locations, the **Global** version takes precedence.
 
+### Model-Specific Defaults
+
+You can define which character to use for each AI model in the `modelCharacters` config. If a model is not listed, or if the specified character cannot be found, the extension falls back to the global `character` default.
+
+### Switching Characters
+
 Switch between characters in chat using:
 `/emote switch`
 
-The selected character is saved in `config.json`.
+The selected character is saved as the global `character` in `config.json`.
 
 ## Custom emotes
 
