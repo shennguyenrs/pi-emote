@@ -87,11 +87,12 @@ export function createRenderer(config: Config, emoteImageId: number) {
       }
     } catch (_) {}
 
+    const usageParts: string[] = []
     if (totalInput || totalOutput) {
-      lines.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`)
+      usageParts.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`)
     }
-
-    lines.push(`$${totalCost.toFixed(3)}`)
+    usageParts.push(`$${totalCost.toFixed(3)}`)
+    lines.push(usageParts.join(theme.fg('muted', ' · ')))
 
     // Add CWD & Git Info
     const home = process.env.HOME
