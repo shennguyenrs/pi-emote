@@ -12,8 +12,7 @@ export function createRenderer(config: Config, emoteImageId: number) {
   let tuiRef: TUI | null = null
   let ctxRef: any = null
   let imageRows = 0
-  let pendingTransmit: string | null = null
-  let replotSequence: string | null = null
+  let imageSequence: string | null = null
   let lastShownBase64: string | null = null
   let gitBranch: string | null = null
   let gitStats: string | null = null
@@ -33,18 +32,14 @@ export function createRenderer(config: Config, emoteImageId: number) {
     const result = renderImage(base64, dimensions, {
       maxWidthCells: config.size,
       imageId: emoteImageId,
+      moveCursor: false,
     })
 
     if (result) {
-      const transmitSeq = result.sequence.replace('a=T', 'a=t')
-      const placeSeq = `\x1b_Ga=p,i=${emoteImageId},p=1,c=${config.size},r=${result.rows},C=1,q=2\x1b\\`
-
-      pendingTransmit = transmitSeq
-      replotSequence = placeSeq
+      imageSequence = result.sequence
       imageRows = result.rows
     } else {
-      pendingTransmit = null
-      replotSequence = null
+      imageSequence = null
       imageRows = 0
     }
     tuiRef?.requestRender()
@@ -89,7 +84,9 @@ export function createRenderer(config: Config, emoteImageId: number) {
 
     const usageParts: string[] = []
     if (totalInput || totalOutput) {
-      usageParts.push(`↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`)
+      usageParts.push(
+        `↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`,
+      )
     }
     usageParts.push(`$${totalCost.toFixed(3)}`)
     lines.push(usageParts.join(theme.fg('muted', ' · ')))
@@ -124,13 +121,7 @@ export function createRenderer(config: Config, emoteImageId: number) {
     buildInfoLines,
     setTui: (tui: TUI | null) => (tuiRef = tui),
     setCtx: (ctx: any) => (ctxRef = ctx),
-    getPendingTransmit: () => pendingTransmit,
-    consumePendingTransmit: () => {
-      const p = pendingTransmit
-      pendingTransmit = null
-      return p
-    },
-    getReplotSequence: () => replotSequence,
+    getImageSequence: () => imageSequence,
     getImageRows: () => imageRows,
     resetLastShown: () => (lastShownBase64 = null),
     setGitInfo: (branch: string | null, stats: string | null) => {

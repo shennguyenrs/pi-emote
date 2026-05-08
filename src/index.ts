@@ -140,12 +140,9 @@ export default function (pi: ExtensionAPI) {
               let line = ''
               if (i === 0) {
                 line = leftMargin
-                const pending = renderer.consumePendingTransmit()
-                const replot = renderer.getReplotSequence()
-                if (pending) {
-                  line += pending + (replot ?? '')
-                } else if (replot) {
-                  line += replot
+                const seq = renderer.getImageSequence()
+                if (seq) {
+                  line += seq
                 }
                 line += `${avatarPad} ${sep} ${infoLines[i] ?? ''}`
               } else {
