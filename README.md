@@ -101,6 +101,7 @@ To help you create consistent multi-frame emotes for new characters, we provide 
 2.  **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template with placeholders (like `{{STYLE_ADJECTIVE}}`, `{{VFX_PRIMARY}}`) that you can fill out to generate emotes for any character style (e.g., Cyberpunk, Gothic, Kawaii).
 
 **Recommended Workflow:**
+
 1.  Choose or create a **Base Character** image.
 2.  Use the prompts in the template/prompts files with an Image-to-Image model (like Midjourney, DALL-E 3, or Stable Diffusion).
 3.  Generate 4-frame sprite sheets for each state.
