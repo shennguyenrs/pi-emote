@@ -1,9 +1,9 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import {
   getCapabilities,
   allocateImageId,
   deleteKittyImage,
-} from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-tui'
 import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'

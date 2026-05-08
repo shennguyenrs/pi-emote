@@ -1,4 +1,4 @@
-import { visibleWidth, truncateToWidth } from '@mariozechner/pi-tui'
+import { visibleWidth, truncateToWidth } from '@earendil-works/pi-tui'
 
 export function randomPick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!

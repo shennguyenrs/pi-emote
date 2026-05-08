@@ -3,10 +3,10 @@ import {
   getImageDimensions,
   renderImage,
   type TUI,
-} from '@mariozechner/pi-tui'
+} from '@earendil-works/pi-tui'
 import type { Config } from './types'
 import { formatTokens, truncateLine } from './utils'
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 
 export function createRenderer(config: Config, emoteImageId: number) {
   let tuiRef: TUI | null = null
