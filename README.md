@@ -1,10 +1,24 @@
 # CGx's pi-emote
 
-Animated pixel-art emote that lives in the top-right corner of your pi TUI session. Reacts to what the agent is doing — thinking, talking, reading, writing, using tools, etc.
+**Live status dashboard & animated pixel-art emote** that lives in your pi TUI session. It provides a visual indicator of the agent's state while displaying critical session metadata like model info, context usage, and git status.
 
 ![pi-emote demo](pi-emote-demo.gif)
 
 Requires a Kitty-graphics-capable terminal.
+
+## Features
+
+- **Animated Emote:** Reacts to agent actions (thinking, talking, reading, writing, etc.).
+- **Status Dashboard:** Displays:
+  - **Model & Thinking Level:** See which model is active and its current reasoning depth.
+  - **Context Usage:** Real-time tracking of token usage vs. context window.
+  - **Session Stats:** Accumulated input/output tokens and estimated session cost.
+  - **Environment Info:** Current Working Directory (CWD).
+  - **Git Integration:** Shows current branch and pending change stats (`git diff --shortstat`).
+- **Cross-Terminal Support:**
+  - **Kitty:** Full high-resolution image support.
+  - **iTerm2:** High-resolution image support.
+  - **ASCII Fallback:** Automatically switches to text-based emotes in other terminals.
 
 ## Install
 
@@ -29,13 +43,18 @@ pi install git:github.com/shennguyenrs/pi-emote
 
 ## Config
 
-`config.json` in the extension root:
+`config.json` is looked for in the following locations (highest precedence first):
+
+1. `.pi/extensions/pi-emote/emotes/config.json`
+2. `~/.pi/agent/extensions/pi-emote/emotes/config.json`
+3. Extension's built-in `emotes/config.json`
+
+Example configuration:
 
 ```json
 {
   "enabled": true,
   "size": 8,
-  "readingSpeed": 4,
   "character": "pi",
   "modelCharacters": {
     "gpt-4o": "compact",
@@ -58,58 +77,46 @@ pi install git:github.com/shennguyenrs/pi-emote
 }
 ```
 
-- `size` — image width/height in terminal cells
-- `readingSpeed` — words/sec, controls how long talk mouth stays open after tokens stop
-- `character` — global default character name
-- `modelCharacters` — a map of model names to character names (e.g., `"gpt-4o": "compact"`)
-- `hideBelow` — hide emote when terminal is narrower than this many columns
-- `idle` & `talk` — global default animation settings for all characters
+- `size` — Image width/height in terminal cells (for image-capable terminals).
+- `character` — Global default character name. Use `"ascii"` to force text-mode.
+- `modelCharacters` — Map of model names to character names (e.g., `"gpt-4o": "compact"`).
+- `hideBelow` — Hide the widget when terminal is narrower than this many columns.
+- `holdDuration` — How long to stay in temporary states (`hi`, `success`, `failure`) in ms.
+- `idle` & `talk` — Global default animation settings for all characters.
 
 ## Multi-Character Support
 
-The extension scans two locations for characters:
+The extension scans three locations for characters:
 
-1.  **Local:** `emotes/` folder inside the extension directory.
-2.  **Global:** `~/.pi/agent/emote/` in your home directory (ideal for user-added characters).
-
-If a character exists in both locations, the **Global** version takes precedence.
-
-### Model-Specific Defaults
-
-You can define which character to use for each AI model in the `modelCharacters` config. If a model is not listed, or if the specified character cannot be found, the extension falls back to the global `character` default.
+1.  **Local:** `.pi/extensions/pi-emote/emotes/` (project-specific)
+2.  **User:** `~/.pi/agent/extensions/pi-emote/emotes/` (global user-added)
+3.  **Default:** Built-in `emotes/` folder.
 
 ### Switching Characters
 
 Switch between characters in chat using:
 `/emote switch`
 
-The selected character is saved as the global `character` in `config.json`.
+The selected character is saved to your configuration.
 
-## Custom emotes
+## Custom Emotes
 
-Place PNGs into `~/.pi/agent/emote/<character>/<state>/`. The extension auto-discovers frames per directory.
+Place PNGs into `~/.pi/agent/extensions/pi-emote/emotes/<character>/<state>/`. The extension auto-discovers frames per directory.
 
 ### Structure:
 
-`~/.pi/agent/emote/<character>/<state>/<frame>.png`
+`~/.pi/agent/extensions/pi-emote/emotes/<character>/<state>/<frame>.png`
 
 ### Creating New Characters
 
-To help you create consistent multi-frame emotes for new characters, we provide two resources:
+To help you create consistent multi-frame emotes, we provide:
 
-1.  **[EXAMPLE_PROMPT.md](./EXAMPLE_PROMPT.md):** The original prompts used to generate the a custom character. Use these as a reference for Image-to-Image generation.
-2.  **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template with placeholders (like `{{STYLE_ADJECTIVE}}`, `{{VFX_PRIMARY}}`) that you can fill out to generate emotes for any character style (e.g., Cyberpunk, Gothic, Kawaii).
+1.  **[EXAMPLE_PROMPT.md](./EXAMPLE_PROMPT.md):** Sample prompts for Image-to-Image generation.
+2.  **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template for any character style.
 
-**Recommended Workflow:**
+### ASCII Fallback Emotes
 
-1.  Choose or create a **Base Character** image.
-2.  Use the prompts in the template/prompts files with an Image-to-Image model (like Midjourney, DALL-E 3, or Stable Diffusion).
-3.  Generate 4-frame sprite sheets for each state.
-4.  Crop and save the frames into the appropriate folders.
-
-### Optional Config:
-
-You can add an `emotes.json` inside your character folder to override global animation settings (like mouth weights or specific blink frames). If omitted, the character will use the defaults defined in the root `config.json`.
+Text-based emotes are defined in `emotes/ascii/fallback.json`. You can create your own by providing a character folder named `ascii` in your search path.
 
 ## License
 
