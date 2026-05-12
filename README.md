@@ -30,7 +30,7 @@ pi install git:github.com/shennguyenrs/pi-emote
 
 | State   | Trigger                                 |
 | ------- | --------------------------------------- |
-| hi      | Session start                           |
+| hi      | Session start / Character switch        |
 | idle    | Nothing happening (blinks occasionally) |
 | think   | Reasoning tokens streaming              |
 | talk    | Text response streaming                 |
@@ -57,8 +57,8 @@ Example configuration:
   "size": 8,
   "character": "pi",
   "modelCharacters": {
-    "gpt-4o": "compact",
-    "claude-3.5-sonnet": "pi"
+    "gemini": "pi",
+    "gpt": "ascii"
   },
   "hideBelow": 80,
   "holdDuration": { "hi": 2000, "success": 1200, "failure": 1200 },
@@ -79,7 +79,7 @@ Example configuration:
 
 - `size` — Image width/height in terminal cells (for image-capable terminals).
 - `character` — Global default character name. Use `"ascii"` to force text-mode.
-- `modelCharacters` — Map of model names to character names (e.g., `"gpt-4o": "compact"`).
+- `modelCharacters` — Map of model names to character names. Uses case-insensitive partial matching (e.g., `"gemini"` matches `"google/gemini-2.0"`). Wildcards (`*`) are also supported.
 - `hideBelow` — Hide the widget when terminal is narrower than this many columns.
 - `holdDuration` — How long to stay in temporary states (`hi`, `success`, `failure`) in ms.
 - `idle` & `talk` — Global default animation settings for all characters.
@@ -95,9 +95,11 @@ The extension scans three locations for characters:
 ### Switching Characters
 
 Switch between characters in chat using:
-`/emote switch`
 
-The selected character is saved to your configuration.
+- `/emote switch` — Set the global default character.
+- `/emote set-model` — Set the character for the currently active model.
+
+The selection is saved to your configuration. Model names are matched using case-insensitive partial matching (e.g., `"gemini"` matches `"google/gemini-pro"`). Wildcards (`*`) are also supported.
 
 ## Custom Emotes
 
