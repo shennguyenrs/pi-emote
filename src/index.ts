@@ -54,21 +54,51 @@ export default function (pi: ExtensionAPI) {
     totalCost: 0,
   }
 
-  function updateSessionStats(ctx: any) {
+  let baseStats = { input: 0, output: 0, cost: 0 }
+  let currentMessageId: string | null = null
+
+  function updateSessionStats(ctx: any, currentMessage?: any) {
     if (!ctx?.sessionManager) return
-    let input = 0
-    let output = 0
-    let cost = 0
-    try {
-      for (const entry of ctx.sessionManager.getEntries()) {
-        if (entry.type === 'message' && entry.message.role === 'assistant') {
-          input += entry.message.usage?.input ?? 0
-          output += entry.message.usage?.output ?? 0
-          cost += entry.message.usage?.cost?.total ?? 0
+
+    // If a new message started, recalculate the base stats excluding the current message
+    if (currentMessage && currentMessage.id && currentMessage.id !== currentMessageId) {
+      currentMessageId = currentMessage.id
+      let input = 0, output = 0, cost = 0
+      try {
+        for (const entry of ctx.sessionManager.getEntries()) {
+          if (entry.type === 'message' && entry.message.role === 'assistant' && entry.message.id !== currentMessageId) {
+            input += entry.message.usage?.input ?? 0
+            output += entry.message.usage?.output ?? 0
+            cost += entry.message.usage?.cost?.total ?? 0
+          }
         }
-      }
-    } catch (_) {}
-    sessionStats = { totalInput: input, totalOutput: output, totalCost: cost }
+      } catch (_) {}
+      baseStats = { input, output, cost }
+    } else if (!currentMessage) {
+      // Full recalculation (e.g., on session_start or agent_end)
+      currentMessageId = null
+      let input = 0, output = 0, cost = 0
+      try {
+        for (const entry of ctx.sessionManager.getEntries()) {
+          if (entry.type === 'message' && entry.message.role === 'assistant') {
+            input += entry.message.usage?.input ?? 0
+            output += entry.message.usage?.output ?? 0
+            cost += entry.message.usage?.cost?.total ?? 0
+          }
+        }
+      } catch (_) {}
+      baseStats = { input, output, cost }
+    }
+
+    const currentInput = currentMessage?.usage?.input ?? 0
+    const currentOutput = currentMessage?.usage?.output ?? 0
+    const currentCost = currentMessage?.usage?.cost?.total ?? 0
+
+    sessionStats = {
+      totalInput: baseStats.input + currentInput,
+      totalOutput: baseStats.output + currentOutput,
+      totalCost: baseStats.cost + currentCost,
+    }
   }
 
   async function refreshStatus(ctx: any, branchOverride?: string | null) {
@@ -196,6 +226,9 @@ export default function (pi: ExtensionAPI) {
 
   pi.on('message_update', async (event) => {
     if (event.message?.role !== 'assistant') return
+
+    updateSessionStats(ctxRef, event.message)
+
     const streamEvent = event.assistantMessageEvent
     if (!streamEvent) return
 
@@ -224,7 +257,6 @@ export default function (pi: ExtensionAPI) {
 
     if (state.getCurrentState() !== 'talk') state.transitionTo('talk')
     state.onTalkToken(text)
-    updateSessionStats(ctxRef)
   })
 
   pi.on('agent_end', async (event, ctx) => {
@@ -233,6 +265,7 @@ export default function (pi: ExtensionAPI) {
     } else if (!['idle', 'hi', 'compact'].includes(state.getCurrentState())) {
       state.transitionTo('idle')
     }
+    updateSessionStats(ctx)
     refreshStatus(ctx)
   })
 
