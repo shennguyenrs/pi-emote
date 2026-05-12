@@ -48,20 +48,19 @@ export default function (pi: ExtensionAPI) {
 
   manager.ensureCharacter(config.character, state)
 
-  let gitBranch: string | null = null
-  let gitStats: string | null = null
+  let gitInfo = { branch: null as string | null, stats: null as string | null }
   let extensionStatuses: string[] = []
 
-  async function refreshGit(cwd: string, branchOverride?: string | null) {
-    if (!cwd) return
+  async function refreshStatus(ctx: any, branchOverride?: string | null) {
+    if (!ctx?.cwd) return
     try {
-      const branch = branchOverride !== undefined ? branchOverride : gitBranch
       const statsResult = await pi
-        .exec('git', ['diff', '--shortstat'], { cwd })
+        .exec('git', ['diff', '--shortstat'], { cwd: ctx.cwd })
         .catch(() => null)
-      const stats = statsResult?.stdout.trim() || null
-      gitBranch = branch
-      gitStats = stats
+      gitInfo = {
+        branch: branchOverride || gitInfo.branch,
+        stats: statsResult?.stdout.trim() || null,
+      }
     } catch (e) {}
   }
 
@@ -84,7 +83,7 @@ export default function (pi: ExtensionAPI) {
       manager.setTui(tui)
     },
     getCtxRef: () => ctxRef,
-    getGitInfo: () => ({ branch: gitBranch, stats: gitStats }),
+    getGitInfo: () => gitInfo,
     getExtensionStatuses: () => extensionStatuses,
   })
 
@@ -105,11 +104,9 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setWorkingVisible(false)
     ctx.ui.setFooter((tui, theme, footerData) => {
       const update = () => {
-        gitBranch = footerData.getGitBranch()
-        refreshGit(ctx.cwd, gitBranch)
-        extensionStatuses = Array.from(
-          footerData.getExtensionStatuses().values(),
-        )
+        const branch = footerData.getGitBranch()
+        gitInfo.branch = branch
+        refreshStatus(ctx, branch)
       }
       update()
       const unsub = footerData.onBranchChange(() => {
@@ -118,8 +115,8 @@ export default function (pi: ExtensionAPI) {
       })
       return {
         render: () => {
-          if (extensionStatuses.length === 0) return []
-          return [extensionStatuses.join(' ')]
+          extensionStatuses = Array.from(footerData.getExtensionStatuses().values())
+          return [] // Return empty to avoid double display in footer
         },
         invalidate: () => {},
         dispose: unsub,
@@ -226,7 +223,7 @@ export default function (pi: ExtensionAPI) {
     } else if (!['idle', 'hi', 'compact'].includes(state.getCurrentState())) {
       state.transitionTo('idle')
     }
-    refreshGit(ctx.cwd)
+    refreshStatus(ctx)
   })
 
   pi.on('tool_execution_start', async (event) => {
@@ -240,7 +237,7 @@ export default function (pi: ExtensionAPI) {
     } else {
       state.transitionTo('read')
     }
-    refreshGit(ctx.cwd)
+    refreshStatus(ctx)
   })
 
   pi.on('session_before_compact', async () => {
