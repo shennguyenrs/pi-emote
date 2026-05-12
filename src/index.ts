@@ -60,7 +60,6 @@ export default function (pi: ExtensionAPI) {
 
     state.clearAllTimers()
     manager.currentRenderer.resetCache()
-    state.transitionTo('hi')
   }
 
   const widgetFactory = createWidgetFactory({
@@ -74,6 +73,14 @@ export default function (pi: ExtensionAPI) {
     getGitInfo: () => gitTracker.getInfo(),
     getExtensionStatuses: () => extensionStatuses,
     getSessionStats: () => statsTracker.getStats(),
+    onRender: (ctx) => {
+      const effectiveChar = getEffectiveCharacter(
+        resolver,
+        config,
+        ctx?.model?.name,
+      )
+      manager.ensureCharacter(effectiveChar, state)
+    },
   })
 
   // --- Events ---
@@ -119,7 +126,6 @@ export default function (pi: ExtensionAPI) {
     })
 
     state.setWidgetActive(true)
-    setTimeout(() => state.transitionTo('hi'), 500)
   })
 
   pi.on('session_shutdown', async (_event, ctx) => {
@@ -155,8 +161,31 @@ export default function (pi: ExtensionAPI) {
           reloadCharacter(selection)
           ctx.ui.notify(`Switched to character: ${selection}`, 'info')
         }
+      } else if (subCommand === 'set-model') {
+        const modelName = ctx.model?.name
+        if (!modelName) {
+          ctx.ui.notify('Could not detect current model name', 'error')
+          return
+        }
+
+        const characters = resolver.getAllCharacters()
+        const selection = await ctx.ui.select(
+          `Set character for ${modelName}`,
+          characters,
+        )
+        if (selection) {
+          if (!config.modelCharacters) config.modelCharacters = {}
+          config.modelCharacters[modelName] = selection
+          saveConfig(resolver, config)
+
+          manager.ensureCharacter(selection, state)
+          ctx.ui.notify(
+            `Set ${modelName} to use character: ${selection}`,
+            'info',
+          )
+        }
       } else {
-        ctx.ui.notify('Usage: /emote switch', 'info')
+        ctx.ui.notify('Usage: /emote [switch|set-model]', 'info')
       }
     },
   })

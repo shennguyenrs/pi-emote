@@ -130,10 +130,30 @@ export function getEffectiveCharacter(
   config: Config,
   modelName?: string,
 ): string {
-  if (modelName && config.modelCharacters?.[modelName]) {
-    const preferred = config.modelCharacters[modelName]
-    if (resolver.getCharacterDir(preferred)) {
-      return preferred
+  if (modelName && config.modelCharacters) {
+    // Try exact match first
+    if (config.modelCharacters[modelName]) {
+      const preferred = config.modelCharacters[modelName]
+      if (resolver.getCharacterDir(preferred)) {
+        return preferred
+      }
+    }
+
+    // Try regex/pattern match
+    for (const [pattern, character] of Object.entries(config.modelCharacters)) {
+      try {
+        const escaped = pattern
+          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/\*/g, '.*')
+        const regex = new RegExp(escaped, 'i')
+        if (regex.test(modelName)) {
+          if (resolver.getCharacterDir(character)) {
+            return character
+          }
+        }
+      } catch (e) {
+        // Skip invalid regex
+      }
     }
   }
   return config.character

@@ -124,6 +124,7 @@ export interface WidgetDeps {
   getGitInfo: () => { branch: string | null; stats: string | null }
   getExtensionStatuses: () => string[]
   getSessionStats: () => SessionStats
+  onRender?: (ctx: any) => void
 }
 
 export function createWidgetFactory(deps: WidgetDeps) {
@@ -132,8 +133,12 @@ export function createWidgetFactory(deps: WidgetDeps) {
     return {
       render(width: number): string[] {
         const { config, pi } = deps
+        const ctx = deps.getCtxRef()
 
         if (width < config.hideBelow) return []
+
+        // Trigger character update check every render
+        deps.onRender?.(ctx)
 
         const frame = deps.getRenderedFrame()
         if (!frame) return []

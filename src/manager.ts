@@ -13,6 +13,7 @@ export class RendererManager {
   private renderer: Renderer
   private emotesConfig: EmotesConfig = {}
   private tuiRef: any = null
+  private currentCharacter: string | null = null
 
   constructor(
     private config: Config,
@@ -46,6 +47,9 @@ export class RendererManager {
   }
 
   ensureCharacter(character: string, state: EmoteStateController) {
+    if (this.currentCharacter === character) return
+    this.currentCharacter = character
+
     let newRenderer: Renderer | null = null
 
     if (character === 'ascii') {
@@ -73,6 +77,8 @@ export class RendererManager {
       this.emotesConfig = loadEmotesConfig(this.resolver, character)
       this.renderer.loadFrames(character, this.resolver)
     }
+
+    state.transitionTo('hi')
   }
 
   dispose() {

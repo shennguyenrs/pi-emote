@@ -2,6 +2,10 @@
   "enabled": true,
   "size": 8,
   "character": "ascii",
+  "modelCharacters": {
+    "gemini": "pi",
+    "gpt": "ascii"
+  },
   "hideBelow": 80,
   "holdDuration": {
     "hi": 2000,
