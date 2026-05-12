@@ -19,7 +19,6 @@ export function loadConfig(extDir: string): Config {
   const defaults: Config = {
     enabled: true,
     size: 8,
-    readingSpeed: 4,
     character: 'pi',
     hideBelow: 80,
     holdDuration: { hi: 2000, success: 1200, failure: 1200 },

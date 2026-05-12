@@ -22,20 +22,17 @@ export function createEmoteState(
   let talkTimer: ReturnType<typeof setInterval> | null = null
   let cycleTimer: ReturnType<typeof setInterval> | null = null
   let talkGapTimer: ReturnType<typeof setTimeout> | null = null
-  let talkDurationTimer: ReturnType<typeof setTimeout> | null = null
 
   let cycleIndex = 0
   let cycleDirection = 1
   let holdNextState: EmoteState = 'idle'
 
   // Talk state
-  let talkWordCount = 0
-  let talkStartTime = 0
   let lastTokenTime = 0
   let talkMouthClosed = false
 
   function clearAllTimers() {
-    const timeouts = [holdTimer, blinkTimer, talkGapTimer, talkDurationTimer]
+    const timeouts = [holdTimer, blinkTimer, talkGapTimer]
     timeouts.forEach((t) => {
       if (t) clearTimeout(t)
     })
@@ -43,12 +40,12 @@ export function createEmoteState(
     intervals.forEach((t) => {
       if (t) clearInterval(t)
     })
-    holdTimer = blinkTimer = talkGapTimer = talkDurationTimer = null
+    holdTimer = blinkTimer = talkGapTimer = null
     talkTimer = cycleTimer = null
   }
 
   function clearStateTimers() {
-    const timeouts = [holdTimer, talkGapTimer, talkDurationTimer]
+    const timeouts = [holdTimer, talkGapTimer]
     timeouts.forEach((t) => {
       if (t) clearTimeout(t)
     })
@@ -56,7 +53,7 @@ export function createEmoteState(
     intervals.forEach((t) => {
       if (t) clearInterval(t)
     })
-    holdTimer = talkGapTimer = talkDurationTimer = null
+    holdTimer = talkGapTimer = null
     talkTimer = cycleTimer = null
   }
 
@@ -159,8 +156,6 @@ export function createEmoteState(
   }
 
   function enterTalk() {
-    talkWordCount = 0
-    talkStartTime = Date.now()
     lastTokenTime = Date.now()
     talkMouthClosed = false
 
@@ -176,11 +171,9 @@ export function createEmoteState(
     }, config.talkTickMs)
   }
 
-  function onTalkToken(text: string) {
+  function onTalkToken(_text: string) {
     if (currentState !== 'talk') return
 
-    const words = text.split(/\s+/).filter((w) => w.length > 0).length
-    talkWordCount += words
     lastTokenTime = Date.now()
 
     if (talkMouthClosed) {
@@ -192,35 +185,10 @@ export function createEmoteState(
       if (currentState !== 'talk') return
       talkMouthClosed = true
     }, 200)
-
-    recalculateTalkDuration()
-  }
-
-  function recalculateTalkDuration() {
-    if (talkDurationTimer) clearTimeout(talkDurationTimer)
-
-    const targetDurationMs = (talkWordCount / config.readingSpeed) * 1000
-    const elapsed = Date.now() - talkStartTime
-    const remaining = Math.max(0, targetDurationMs - elapsed)
-
-    talkDurationTimer = setTimeout(() => {
-      if (currentState !== 'talk') return
-      const timeSinceLastToken = Date.now() - lastTokenTime
-      if (timeSinceLastToken > 200) {
-        transitionTo('idle')
-      } else {
-        talkDurationTimer = setTimeout(() => {
-          if (currentState === 'talk') transitionTo('idle')
-        }, 200)
-      }
-    }, remaining)
   }
 
   function endTalk() {
-    if (currentState !== 'talk') return
-    const targetDurationMs = (talkWordCount / config.readingSpeed) * 1000
-    const elapsed = Date.now() - talkStartTime
-    if (elapsed >= targetDurationMs) {
+    if (currentState === 'talk') {
       transitionTo('idle')
     }
   }

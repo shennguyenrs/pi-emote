@@ -16,7 +16,6 @@ export type EmoteState = (typeof EMOTE_STATES)[number]
 export interface Config {
   enabled: boolean
   size: number
-  readingSpeed: number
   character: string
   modelCharacters?: Record<string, string>
   hideBelow: number
