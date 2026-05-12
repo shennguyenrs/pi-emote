@@ -5,7 +5,6 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   loadConfig,
-  loadEmotesConfig,
   saveConfig,
   localEmotesDir,
   globalEmotesDir,
@@ -13,10 +12,7 @@ import {
 } from './config'
 import { createEmoteState } from './state'
 import type { EmoteState } from './types'
-import type { Renderer } from './renderer'
-import { KittyRenderer } from './render_kitty'
-import { ITermRenderer } from './render_iterm'
-import { AsciiRenderer } from './render_ascii'
+import { RendererManager } from './manager'
 import { createWidgetFactory } from './widget'
 
 function toolNameToState(toolName: string): EmoteState {
@@ -31,17 +27,6 @@ function toolNameToState(toolName: string): EmoteState {
   }
 }
 
-function createRenderer(config: any): Renderer {
-  const caps = getCapabilities()
-  if (caps.images === 'kitty') {
-    return new KittyRenderer(config.size)
-  }
-  if (caps.images === 'iterm2') {
-    return new ITermRenderer(config.size)
-  }
-  return new AsciiRenderer()
-}
-
 export default function (pi: ExtensionAPI) {
   let extDir = ''
   try {
@@ -52,47 +37,16 @@ export default function (pi: ExtensionAPI) {
   const config = loadConfig(extDir)
   if (!config.enabled) return
 
-  let emotesConfig = loadEmotesConfig(extDir, config.character)
-  let loadedCharacter = config.character
-
-  let renderer = createRenderer(config)
-  const state = createEmoteState(config, () => emotesConfig, renderer)
+  const manager = new RendererManager(config, extDir)
+  const state = createEmoteState(
+    config,
+    () => manager.currentEmotesConfig,
+    manager.currentRenderer,
+  )
 
   let ctxRef: any = null
-  let tuiRef: any = null
 
-  function ensureRendererForCharacter(character: string) {
-    let newRenderer: Renderer | null = null
-
-    if (character === 'ascii') {
-      if (!(renderer instanceof AsciiRenderer)) {
-        newRenderer = new AsciiRenderer()
-      }
-    } else {
-      const detected = createRenderer(config)
-      if (renderer.constructor !== detected.constructor) {
-        newRenderer = detected
-      }
-    }
-
-    if (newRenderer) {
-      renderer.dispose()
-      renderer = newRenderer
-      renderer.setTui(tuiRef)
-      state.setRenderer(renderer)
-    }
-
-    if (character === 'ascii') {
-      renderer.loadFrames('', extDir)
-      emotesConfig = {}
-    } else {
-      emotesConfig = loadEmotesConfig(extDir, character)
-      renderer.loadFrames(character, extDir)
-    }
-    loadedCharacter = character
-  }
-
-  ensureRendererForCharacter(config.character)
+  manager.ensureCharacter(config.character, state)
 
   let gitBranch: string | null = null
   let gitStats: string | null = null
@@ -115,20 +69,19 @@ export default function (pi: ExtensionAPI) {
     config.character = character
     saveConfig(extDir, config)
 
-    ensureRendererForCharacter(character)
+    manager.ensureCharacter(character, state)
 
     state.clearAllTimers()
-    renderer.resetCache()
+    manager.currentRenderer.resetCache()
     state.transitionTo('hi')
   }
 
   const widgetFactory = createWidgetFactory({
     pi,
     config,
-    getRenderedFrame: () => renderer.getRenderedFrame(),
+    getRenderedFrame: () => manager.currentRenderer.getRenderedFrame(),
     setTui: (tui) => {
-      tuiRef = tui
-      renderer.setTui(tui)
+      manager.setTui(tui)
     },
     getCtxRef: () => ctxRef,
     getGitInfo: () => ({ branch: gitBranch, stats: gitStats }),
@@ -141,9 +94,9 @@ export default function (pi: ExtensionAPI) {
     if (!ctx.hasUI) return
 
     const effectiveChar = getEffectiveCharacter(extDir, config, ctx.model?.name)
-    ensureRendererForCharacter(effectiveChar)
+    manager.ensureCharacter(effectiveChar, state)
 
-    renderer.resetCache()
+    manager.currentRenderer.resetCache()
     state.clearAllTimers()
     ctxRef = ctx
 
@@ -179,15 +132,13 @@ export default function (pi: ExtensionAPI) {
 
   pi.on('session_shutdown', async (_event, ctx) => {
     state.clearAllTimers()
-    renderer.dispose()
+    manager.dispose()
     if (ctx.hasUI) {
       ctx.ui.setWidget('emote', undefined)
       ctx.ui.setWorkingVisible(true)
       ctx.ui.setFooter(undefined)
     }
     state.setWidgetActive(false)
-    renderer.setTui(null)
-    tuiRef = null
     ctxRef = null
   })
 
