@@ -1,9 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import {
-  getCapabilities,
-  allocateImageId,
-  deleteKittyImage,
-} from '@earendil-works/pi-tui'
+import { getCapabilities } from '@earendil-works/pi-tui'
 import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,10 +11,13 @@ import {
   globalEmotesDir,
   getEffectiveCharacter,
 } from './config'
-import { discoverFrames } from './assets'
-import { createRenderer } from './renderer'
 import { createEmoteState } from './state'
 import type { EmoteState } from './types'
+import type { Renderer } from './renderer'
+import { KittyRenderer } from './render_kitty'
+import { ITermRenderer } from './render_iterm'
+import { AsciiRenderer } from './render_ascii'
+import { createWidgetFactory } from './widget'
 
 function toolNameToState(toolName: string): EmoteState {
   switch (toolName) {
@@ -32,149 +31,132 @@ function toolNameToState(toolName: string): EmoteState {
   }
 }
 
+function createRenderer(config: any): Renderer {
+  const caps = getCapabilities()
+  if (caps.images === 'kitty') {
+    return new KittyRenderer(config.size)
+  }
+  if (caps.images === 'iterm2') {
+    return new ITermRenderer(config.size)
+  }
+  return new AsciiRenderer()
+}
+
 export default function (pi: ExtensionAPI) {
   let extDir = ''
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url))
     extDir = dirname(__dirname)
-  } catch (e) {
-    // fallback or ignore if we can't determine extDir
-  }
+  } catch (e) {}
 
   const config = loadConfig(extDir)
-
   if (!config.enabled) return
 
   let emotesConfig = loadEmotesConfig(extDir, config.character)
-  let frameMap = discoverFrames(extDir, config.character)
   let loadedCharacter = config.character
 
-  const emoteImageId = allocateImageId()
-  const renderer = createRenderer(config, emoteImageId)
-  const state = createEmoteState(
-    config,
-    () => emotesConfig,
-    () => frameMap,
-    renderer,
-  )
+  let renderer = createRenderer(config)
+  const state = createEmoteState(config, () => emotesConfig, renderer)
 
-  function loadCharacterAssets(character: string) {
-    if (loadedCharacter === character) return
-    emotesConfig = loadEmotesConfig(extDir, character)
-    frameMap = discoverFrames(extDir, character)
+  let ctxRef: any = null
+  let tuiRef: any = null
+
+  function ensureRendererForCharacter(character: string) {
+    let newRenderer: Renderer | null = null
+
+    if (character === 'ascii') {
+      if (!(renderer instanceof AsciiRenderer)) {
+        newRenderer = new AsciiRenderer()
+      }
+    } else {
+      const detected = createRenderer(config)
+      if (renderer.constructor !== detected.constructor) {
+        newRenderer = detected
+      }
+    }
+
+    if (newRenderer) {
+      renderer.dispose()
+      renderer = newRenderer
+      renderer.setTui(tuiRef)
+      state.setRenderer(renderer)
+    }
+
+    if (character === 'ascii') {
+      renderer.loadFrames('', extDir)
+      emotesConfig = {}
+    } else {
+      emotesConfig = loadEmotesConfig(extDir, character)
+      renderer.loadFrames(character, extDir)
+    }
     loadedCharacter = character
   }
 
-  let lastBranch: string | null = null
+  ensureRendererForCharacter(config.character)
+
+  let gitBranch: string | null = null
+  let gitStats: string | null = null
+  let extensionStatuses: string[] = []
 
   async function refreshGit(cwd: string, branchOverride?: string | null) {
     if (!cwd) return
     try {
-      const branch = branchOverride !== undefined ? branchOverride : lastBranch
+      const branch = branchOverride !== undefined ? branchOverride : gitBranch
       const statsResult = await pi
         .exec('git', ['diff', '--shortstat'], { cwd })
         .catch(() => null)
       const stats = statsResult?.stdout.trim() || null
-
-      if ('setGitInfo' in renderer) {
-        ;(renderer as any).setGitInfo(branch, stats)
-      }
-    } catch (e) {
-      // ignore git errors
-    }
+      gitBranch = branch
+      gitStats = stats
+    } catch (e) {}
   }
 
   function reloadCharacter(character: string) {
     config.character = character
-    loadCharacterAssets(character)
-
     saveConfig(extDir, config)
 
+    ensureRendererForCharacter(character)
+
     state.clearAllTimers()
-    renderer.resetLastShown()
+    renderer.resetCache()
     state.transitionTo('hi')
   }
+
+  const widgetFactory = createWidgetFactory({
+    pi,
+    config,
+    getRenderedFrame: () => renderer.getRenderedFrame(),
+    setTui: (tui) => {
+      tuiRef = tui
+      renderer.setTui(tui)
+    },
+    getCtxRef: () => ctxRef,
+    getGitInfo: () => ({ branch: gitBranch, stats: gitStats }),
+    getExtensionStatuses: () => extensionStatuses,
+  })
 
   // --- Events ---
 
   pi.on('session_start', async (_event, ctx) => {
     if (!ctx.hasUI) return
 
-    const caps = getCapabilities()
-    if (!caps.images) return
-
     const effectiveChar = getEffectiveCharacter(extDir, config, ctx.model?.name)
-    if (effectiveChar !== loadedCharacter) {
-      loadCharacterAssets(effectiveChar)
-      renderer.resetLastShown()
-    }
+    ensureRendererForCharacter(effectiveChar)
 
+    renderer.resetCache()
     state.clearAllTimers()
-    renderer.setCtx(ctx)
+    ctxRef = ctx
 
-    ctx.ui.setWidget(
-      'emote',
-      (tui, theme) => {
-        renderer.setTui(tui)
-        return {
-          render(width: number): string[] {
-            if (width < config.hideBelow) return []
-            const imageRows = renderer.getImageRows()
-            if (imageRows === 0) return []
-
-            const thinkingLevel = pi.getThinkingLevel?.() ?? 'high'
-            const borderColor =
-              (theme as any).getThinkingBorderColor?.(thinkingLevel) ??
-              ((s: string) => theme.fg('border', s))
-            const border = borderColor('─'.repeat(width))
-            const sep = borderColor('│')
-            const leftMargin = ' '
-            const avatarPad = ' '.repeat(config.size)
-            const infoLines = renderer.buildInfoLines(width, theme, pi)
-
-            const lines: string[] = []
-            lines.push(border)
-
-            const rowCount = Math.max(imageRows, infoLines.length)
-            for (let i = 0; i < rowCount; i++) {
-              let line = ''
-              if (i === 0) {
-                line = leftMargin
-                const seq = renderer.getImageSequence()
-                if (seq) {
-                  line += seq
-                }
-                line += `${avatarPad} ${sep} ${infoLines[i] ?? ''}`
-              } else {
-                line = `${leftMargin}${avatarPad} ${sep} ${infoLines[i] ?? ''}`
-              }
-              lines.push(line)
-            }
-            lines.push(border)
-
-            return lines
-          },
-          invalidate() {},
-          dispose() {
-            renderer.setTui(null)
-            renderer.setCtx(null)
-          },
-        }
-      },
-      { placement: 'aboveEditor' },
-    )
+    ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
 
     ctx.ui.setWorkingVisible(false)
     ctx.ui.setFooter((tui, theme, footerData) => {
       const update = () => {
-        lastBranch = footerData.getGitBranch()
-        refreshGit(ctx.cwd, lastBranch)
-        if ('setExtensionStatuses' in renderer) {
-          const r = renderer as any
-          r.setExtensionStatuses(
-            Array.from(footerData.getExtensionStatuses().values()),
-          )
-        }
+        gitBranch = footerData.getGitBranch()
+        refreshGit(ctx.cwd, gitBranch)
+        extensionStatuses = Array.from(
+          footerData.getExtensionStatuses().values(),
+        )
       }
       update()
       const unsub = footerData.onBranchChange(() => {
@@ -183,11 +165,8 @@ export default function (pi: ExtensionAPI) {
       })
       return {
         render: () => {
-          const statuses = Array.from(
-            footerData.getExtensionStatuses().values(),
-          )
-          if (statuses.length === 0) return []
-          return [statuses.join(' ')]
+          if (extensionStatuses.length === 0) return []
+          return [extensionStatuses.join(' ')]
         },
         invalidate: () => {},
         dispose: unsub,
@@ -200,7 +179,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on('session_shutdown', async (_event, ctx) => {
     state.clearAllTimers()
-    process.stdout.write(deleteKittyImage(emoteImageId))
+    renderer.dispose()
     if (ctx.hasUI) {
       ctx.ui.setWidget('emote', undefined)
       ctx.ui.setWorkingVisible(true)
@@ -208,7 +187,8 @@ export default function (pi: ExtensionAPI) {
     }
     state.setWidgetActive(false)
     renderer.setTui(null)
-    renderer.setCtx(null)
+    tuiRef = null
+    ctxRef = null
   })
 
   pi.registerCommand('emote', {
@@ -219,7 +199,6 @@ export default function (pi: ExtensionAPI) {
 
       if (subCommand === 'switch') {
         const extEmotesDir = join(extDir, 'emotes')
-
         const getChars = (dir: string) => {
           if (!dir || !existsSync(dir)) return []
           try {

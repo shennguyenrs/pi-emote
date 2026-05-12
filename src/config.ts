@@ -4,8 +4,16 @@ import { homedir } from 'node:os'
 import type { Config, EmotesConfig } from './types'
 
 const home = homedir()
-export const localEmotesDir = join(process.cwd(), '.pi', 'emote')
-export const globalEmotesDir = home ? join(home, '.pi', 'agent', 'emote') : ''
+export const localEmotesDir = join(
+  process.cwd(),
+  '.pi',
+  'extensions',
+  'pi-emote',
+  'emotes',
+)
+export const globalEmotesDir = home
+  ? join(home, '.pi', 'agent', 'extensions', 'pi-emote', 'emotes')
+  : ''
 
 export function loadConfig(extDir: string): Config {
   const defaults: Config = {

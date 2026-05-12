@@ -34,3 +34,14 @@ export interface FrameSet {
   files: string[]
   base64Cache: Map<string, string>
 }
+
+export interface EmoteStateController {
+  transitionTo: (state: EmoteState) => void
+  onTalkToken: (text: string) => void
+  endTalk: () => void
+  clearAllTimers: () => void
+  setWidgetActive: (active: boolean) => void
+  getCurrentState: () => EmoteState
+  setHoldNextState: (state: EmoteState) => void
+  setRenderer: (renderer: any) => void
+}

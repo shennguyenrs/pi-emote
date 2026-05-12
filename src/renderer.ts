@@ -1,137 +1,50 @@
-import {
-  getCapabilities,
-  getImageDimensions,
-  renderImage,
-  type TUI,
-} from '@earendil-works/pi-tui'
-import type { Config } from './types'
-import { formatTokens, truncateLine } from './utils'
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { EmoteState, EmotesConfig } from './types'
+import type { TUI } from '@earendil-works/pi-tui'
 
-export function createRenderer(config: Config, emoteImageId: number) {
-  let tuiRef: TUI | null = null
-  let ctxRef: any = null
-  let imageRows = 0
-  let imageSequence: string | null = null
-  let lastShownBase64: string | null = null
-  let gitBranch: string | null = null
-  let gitStats: string | null = null
-  let extensionStatuses: string[] = []
+/**
+ * A rendered frame — either an image sequence (Kitty/iTerm2) or plain text lines.
+ */
+export type RenderedFrame =
+  | { kind: 'image'; sequence: string; rows: number }
+  | { kind: 'text'; lines: string[] }
 
-  function showImage(base64: string, force = false) {
-    if (!force && base64 === lastShownBase64) return
-    lastShownBase64 = base64
+/**
+ * Renderer interface — abstracts how emote frames are loaded, stored, and displayed.
+ */
+export interface Renderer {
+  /** Set the TUI reference for requesting re-renders. */
+  setTui(tui: TUI | null): void
 
-    const caps = getCapabilities()
-    if (!caps.images) return
+  /** Load frames for an emote set. */
+  loadFrames(characterDir: string, extDir: string): void
 
-    const dimensions = getImageDimensions(base64, 'image/png') ?? {
-      widthPx: 510,
-      heightPx: 510,
-    }
-    const result = renderImage(base64, dimensions, {
-      maxWidthCells: config.size,
-      imageId: emoteImageId,
-      moveCursor: false,
-    })
+  /** Get the current rendered frame (for the widget to read). */
+  getRenderedFrame(): RenderedFrame | null
 
-    if (result) {
-      imageSequence = result.sequence
-      imageRows = result.rows
-    } else {
-      imageSequence = null
-      imageRows = 0
-    }
-    tuiRef?.requestRender()
-  }
+  /** Show a specific named frame for a state. Returns false if not found. */
+  showFrame(state: EmoteState, name: string, force?: boolean): boolean
 
-  function buildInfoLines(
-    width: number,
-    theme: any,
-    pi: ExtensionAPI,
-  ): string[] {
-    const lines: string[] = []
-    if (!ctxRef) return lines
+  /** Show a random frame for a state. Returns false if no frames. */
+  showRandomFrame(state: EmoteState, force?: boolean): boolean
 
-    const model = ctxRef.model
-    let modelStr = model?.name ?? 'no model'
-    const thinkingLevel = pi.getThinkingLevel?.() ?? 'high'
-    if (model?.reasoning) {
-      modelStr += ` • ${thinkingLevel}`
-    }
-    lines.push(theme.bold(modelStr))
+  /** Show a weighted-random talk frame using emotes config. */
+  showTalkFrame(
+    emotesConfig: EmotesConfig,
+    weights?: Record<string, number>,
+  ): boolean
 
-    const usage = ctxRef.getContextUsage?.()
-    if (usage) {
-      const pct = usage.percent !== null ? `${usage.percent.toFixed(1)}%` : '?'
-      const tokens = usage.tokens !== null ? formatTokens(usage.tokens) : '?'
-      const window = formatTokens(usage.contextWindow)
-      lines.push(`Context: ${tokens}/${window} (${pct})`)
-    }
+  /** Show the talk close/rest frame. */
+  showTalkCloseFrame(): boolean
 
-    let totalInput = 0
-    let totalOutput = 0
-    let totalCost = 0
-    try {
-      for (const entry of ctxRef.sessionManager.getEntries()) {
-        if (entry.type === 'message' && entry.message.role === 'assistant') {
-          totalInput += entry.message.usage?.input ?? 0
-          totalOutput += entry.message.usage?.output ?? 0
-          totalCost += entry.message.usage?.cost?.total ?? 0
-        }
-      }
-    } catch (_) {}
+  /** Show a cycling frame for a state (read/write/tool). */
+  showCycleFrame(state: EmoteState, index: number): boolean
 
-    const usageParts: string[] = []
-    if (totalInput || totalOutput) {
-      usageParts.push(
-        `↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`,
-      )
-    }
-    usageParts.push(`$${totalCost.toFixed(3)}`)
-    lines.push(usageParts.join(theme.fg('muted', ' · ')))
+  /** Get number of cycle frames for a state. */
+  getCycleFrameCount(state: EmoteState): number
 
-    // Add CWD & Git Info
-    const home = process.env.HOME
-    let cwd = ctxRef.cwd ?? ''
-    if (home && cwd.startsWith(home)) {
-      cwd = `~${cwd.slice(home.length)}`
-    }
-    let combinedLine = theme.fg('muted', cwd)
+  /** Clean up resources (delete images, etc). */
+  dispose(): void
 
-    if (gitBranch) {
-      combinedLine +=
-        theme.fg('muted', ' · ') + theme.fg('muted', `(${gitBranch})`)
-      if (gitStats) {
-        combinedLine += ' ' + theme.fg('dim', gitStats)
-      }
-    }
-
-    if (extensionStatuses.length > 0) {
-      combinedLine += theme.fg('muted', ' · ') + extensionStatuses.join(' ')
-    }
-
-    lines.push(combinedLine)
-
-    return lines.map((l) => truncateLine(l, width, config.size))
-  }
-
-  return {
-    showImage,
-    buildInfoLines,
-    setTui: (tui: TUI | null) => (tuiRef = tui),
-    setCtx: (ctx: any) => (ctxRef = ctx),
-    getImageSequence: () => imageSequence,
-    getImageRows: () => imageRows,
-    resetLastShown: () => (lastShownBase64 = null),
-    setGitInfo: (branch: string | null, stats: string | null) => {
-      gitBranch = branch
-      gitStats = stats
-      tuiRef?.requestRender()
-    },
-    setExtensionStatuses: (statuses: string[]) => {
-      extensionStatuses = statuses
-      tuiRef?.requestRender()
-    },
-  }
+  /** Reset cached state so next show is forced. */
+  resetCache(): void
 }

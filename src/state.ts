@@ -1,19 +1,18 @@
-import type { EmoteState, Config, EmotesConfig, FrameSet } from './types'
-import {
-  getRandomFrame,
-  getFrame,
-  getTalkFrame,
-  getTalkCloseFrame,
-  getCycleFrame,
-} from './assets'
+import type {
+  EmoteState,
+  Config,
+  EmotesConfig,
+  FrameSet,
+  EmoteStateController,
+} from './types'
 import { randomInRange } from './utils'
+import type { Renderer } from './renderer'
 
 export function createEmoteState(
   config: Config,
   getEmotesConfig: () => EmotesConfig,
-  getFrameMap: () => Map<string, FrameSet>,
-  renderer: { showImage: (base64: string, force?: boolean) => void },
-) {
+  renderer: Renderer,
+): EmoteStateController {
   let currentState: EmoteState = 'idle'
   let widgetActive = false
 
@@ -36,10 +35,12 @@ export function createEmoteState(
   let talkMouthClosed = false
 
   function clearAllTimers() {
-    ;[holdTimer, blinkTimer, talkGapTimer, talkDurationTimer].forEach((t) => {
+    const timeouts = [holdTimer, blinkTimer, talkGapTimer, talkDurationTimer]
+    timeouts.forEach((t) => {
       if (t) clearTimeout(t)
     })
-    ;[talkTimer, cycleTimer].forEach((t) => {
+    const intervals = [talkTimer, cycleTimer]
+    intervals.forEach((t) => {
       if (t) clearInterval(t)
     })
     holdTimer = blinkTimer = talkGapTimer = talkDurationTimer = null
@@ -47,10 +48,12 @@ export function createEmoteState(
   }
 
   function clearStateTimers() {
-    ;[holdTimer, talkGapTimer, talkDurationTimer].forEach((t) => {
+    const timeouts = [holdTimer, talkGapTimer, talkDurationTimer]
+    timeouts.forEach((t) => {
       if (t) clearTimeout(t)
     })
-    ;[talkTimer, cycleTimer].forEach((t) => {
+    const intervals = [talkTimer, cycleTimer]
+    intervals.forEach((t) => {
       if (t) clearInterval(t)
     })
     holdTimer = talkGapTimer = talkDurationTimer = null
@@ -100,16 +103,14 @@ export function createEmoteState(
   }
 
   function enterHi() {
-    const frame = getRandomFrame(getFrameMap(), 'hi')
-    if (frame) renderer.showImage(frame)
+    renderer.showRandomFrame('hi')
     holdTimer = setTimeout(() => transitionTo('idle'), config.holdDuration.hi)
   }
 
   function enterIdle() {
     const ec = getEmotesConfig()
     const defaultFile = ec.idle?.default ?? config.idle?.default ?? 'idle.png'
-    const frame = getFrame(getFrameMap(), 'idle', defaultFile)
-    if (frame) renderer.showImage(frame)
+    renderer.showFrame('idle', defaultFile)
     scheduleBlink()
   }
 
@@ -128,30 +129,26 @@ export function createEmoteState(
   function doBlink() {
     const ec = getEmotesConfig()
     const blinkFile = ec.idle?.blink ?? config.idle?.blink ?? 'idle_blink.png'
-    const blinkFrame = getFrame(getFrameMap(), 'idle', blinkFile)
-    if (!blinkFrame) {
+    if (!renderer.showFrame('idle', blinkFile, true)) {
       scheduleBlink()
       return
     }
 
-    renderer.showImage(blinkFrame)
-
     const doubleBlink = Math.random() < 0.15
-    const blinkDuration = 150
+    const blinkDuration = 200
+    const defaultFile = ec.idle?.default ?? config.idle?.default ?? 'idle.png'
 
     setTimeout(() => {
       if (currentState !== 'idle') return
-      const defaultFile = ec.idle?.default ?? config.idle?.default ?? 'idle.png'
-      const defaultFrame = getFrame(getFrameMap(), 'idle', defaultFile)
-      if (defaultFrame) renderer.showImage(defaultFrame, true)
+      renderer.showFrame('idle', defaultFile, true)
 
       if (doubleBlink) {
         setTimeout(() => {
           if (currentState !== 'idle') return
-          renderer.showImage(blinkFrame, true)
+          renderer.showFrame('idle', blinkFile, true)
           setTimeout(() => {
             if (currentState !== 'idle') return
-            if (defaultFrame) renderer.showImage(defaultFrame, true)
+            renderer.showFrame('idle', defaultFile, true)
             scheduleBlink()
           }, blinkDuration)
         }, 100)
@@ -167,17 +164,14 @@ export function createEmoteState(
     lastTokenTime = Date.now()
     talkMouthClosed = false
 
-    const frame = getTalkFrame(getFrameMap(), config, getEmotesConfig())
-    if (frame) renderer.showImage(frame)
+    renderer.showTalkFrame(getEmotesConfig(), config.talk?.weights)
 
     talkTimer = setInterval(() => {
       if (currentState !== 'talk') return
       if (talkMouthClosed) {
-        const closeFrame = getTalkCloseFrame(getFrameMap())
-        if (closeFrame) renderer.showImage(closeFrame)
+        renderer.showTalkCloseFrame()
       } else {
-        const f = getTalkFrame(getFrameMap(), config, getEmotesConfig())
-        if (f) renderer.showImage(f)
+        renderer.showTalkFrame(getEmotesConfig(), config.talk?.weights)
       }
     }, config.talkTickMs)
   }
@@ -234,19 +228,17 @@ export function createEmoteState(
   function enterCycle(state: EmoteState) {
     cycleIndex = 0
     cycleDirection = 1
-    const frame = getCycleFrame(getFrameMap(), state, cycleIndex)
-    if (frame) renderer.showImage(frame)
+    renderer.showCycleFrame(state, cycleIndex)
 
-    const frameSet = getFrameMap().get(state)
-    if (!frameSet || frameSet.files.length <= 1) return
+    const count = renderer.getCycleFrameCount(state)
+    if (count <= 1) return
 
     cycleTimer = setInterval(() => {
       if (currentState !== state) return
       cycleIndex += cycleDirection
-      if (cycleIndex >= frameSet.files.length - 1) cycleDirection = -1
+      if (cycleIndex >= count - 1) cycleDirection = -1
       if (cycleIndex <= 0) cycleDirection = 1
-      const f = getCycleFrame(getFrameMap(), state, cycleIndex)
-      if (f) renderer.showImage(f)
+      renderer.showCycleFrame(state, cycleIndex)
     }, config.cycleMs)
   }
 
@@ -255,14 +247,12 @@ export function createEmoteState(
     duration: number,
     nextState: EmoteState = 'idle',
   ) {
-    const frame = getRandomFrame(getFrameMap(), state)
-    if (frame) renderer.showImage(frame)
+    renderer.showRandomFrame(state)
     holdTimer = setTimeout(() => transitionTo(nextState), duration)
   }
 
   function enterCompact() {
-    const frame = getRandomFrame(getFrameMap(), 'compact')
-    if (frame) renderer.showImage(frame)
+    renderer.showRandomFrame('compact')
   }
 
   return {
@@ -273,5 +263,8 @@ export function createEmoteState(
     setWidgetActive: (active: boolean) => (widgetActive = active),
     getCurrentState: () => currentState,
     setHoldNextState: (state: EmoteState) => (holdNextState = state),
+    setRenderer: (newRenderer: Renderer) => {
+      renderer = newRenderer
+    },
   }
 }
