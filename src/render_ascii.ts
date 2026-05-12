@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { TUI } from '@earendil-works/pi-tui'
 import type { EmoteState, EmotesConfig } from './types'
+import { EMOTE_STATES } from './types'
 import type { Renderer, RenderedFrame } from './renderer'
 import { randomPick } from './utils'
 import { getCharacterDir } from './config'
@@ -109,20 +110,7 @@ export class AsciiRenderer implements Renderer {
     const parsed = parseSimpleYaml(yamlText)
     this.frames.clear()
 
-    const states: EmoteState[] = [
-      'hi',
-      'idle',
-      'think',
-      'talk',
-      'read',
-      'write',
-      'tool',
-      'success',
-      'failure',
-      'compact',
-    ]
-
-    for (const state of states) {
+    for (const state of EMOTE_STATES) {
       const value = parsed[state]
       if (value === undefined) continue
 

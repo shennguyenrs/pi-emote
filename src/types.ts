@@ -1,14 +1,17 @@
-export type EmoteState =
-  | 'hi'
-  | 'idle'
-  | 'think'
-  | 'talk'
-  | 'read'
-  | 'write'
-  | 'tool'
-  | 'success'
-  | 'failure'
-  | 'compact'
+export const EMOTE_STATES = [
+  'hi',
+  'idle',
+  'think',
+  'talk',
+  'read',
+  'write',
+  'tool',
+  'success',
+  'failure',
+  'compact',
+] as const
+
+export type EmoteState = (typeof EMOTE_STATES)[number]
 
 export interface Config {
   enabled: boolean

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { EmoteState, FrameSet } from './types'
+import { EMOTE_STATES } from './types'
 import { getCharacterDir } from './config'
 
 export function discoverFrames(
@@ -11,20 +12,7 @@ export function discoverFrames(
   const frameMap = new Map<string, FrameSet>()
   if (!characterDir) return frameMap
 
-  const states: EmoteState[] = [
-    'hi',
-    'idle',
-    'think',
-    'talk',
-    'read',
-    'write',
-    'tool',
-    'success',
-    'failure',
-    'compact',
-  ]
-
-  for (const state of states) {
+  for (const state of EMOTE_STATES) {
     const stateDir = join(characterDir, state)
     if (!existsSync(stateDir)) continue
 
