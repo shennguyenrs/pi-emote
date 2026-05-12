@@ -6,72 +6,94 @@ export interface SessionStatsTracker {
 }
 
 export function createSessionStatsTracker(): SessionStatsTracker {
-  let baseStats = { input: 0, output: 0, cost: 0 }
-  let currentMessageId: string | null = null
-  let sessionStats: SessionStats = {
-    totalInput: 0,
-    totalOutput: 0,
-    totalCost: 0,
+  const messageUsageMap = new Map<
+    string,
+    { input: number; output: number; cost: number }
+  >()
+  let totalInput = 0
+  let totalOutput = 0
+  let totalCost = 0
+
+  function setUsage(id: string, input: number, output: number, cost: number) {
+    const prev = messageUsageMap.get(id)
+    if (
+      prev &&
+      prev.input === input &&
+      prev.output === output &&
+      prev.cost === cost
+    ) {
+      return
+    }
+
+    if (prev) {
+      totalInput -= prev.input
+      totalOutput -= prev.output
+      totalCost -= prev.cost
+    }
+
+    messageUsageMap.set(id, { input, output, cost })
+    totalInput += input
+    totalOutput += output
+    totalCost += cost
   }
 
   function update(ctx: any, currentMessage?: any) {
     if (!ctx?.sessionManager) return
 
-    // If a new message started, recalculate the base stats excluding the current message
-    if (
-      currentMessage &&
-      currentMessage.id &&
-      currentMessage.id !== currentMessageId
-    ) {
-      currentMessageId = currentMessage.id
-      let input = 0,
-        output = 0,
-        cost = 0
+    if (currentMessage?.id) {
+      // Fast path: O(1) update for streaming tokens
+      const existing = messageUsageMap.get(currentMessage.id) || {
+        input: 0,
+        output: 0,
+        cost: 0,
+      }
+      const usage = currentMessage.usage
+      setUsage(
+        currentMessage.id,
+        usage?.input ?? existing.input,
+        usage?.output ?? existing.output,
+        usage?.cost?.total ?? existing.cost,
+      )
+    } else {
+      // Slow path: Sync with history and recalculate to prevent drift
       try {
-        for (const entry of ctx.sessionManager.getEntries()) {
-          if (
-            entry.type === 'message' &&
-            entry.message.role === 'assistant' &&
-            entry.message.id !== currentMessageId
-          ) {
-            input += entry.message.usage?.input ?? 0
-            output += entry.message.usage?.output ?? 0
-            cost += entry.message.usage?.cost?.total ?? 0
-          }
-        }
-      } catch (_) {}
-      baseStats = { input, output, cost }
-    } else if (!currentMessage) {
-      // Full recalculation (e.g., on session_start or agent_end)
-      currentMessageId = null
-      let input = 0,
-        output = 0,
-        cost = 0
-      try {
-        for (const entry of ctx.sessionManager.getEntries()) {
+        const entries = ctx.sessionManager.getEntries()
+        for (const entry of entries) {
           if (entry.type === 'message' && entry.message.role === 'assistant') {
-            input += entry.message.usage?.input ?? 0
-            output += entry.message.usage?.output ?? 0
-            cost += entry.message.usage?.cost?.total ?? 0
+            const msg = entry.message
+            if (msg.usage) {
+              setUsage(
+                msg.id,
+                msg.usage.input ?? 0,
+                msg.usage.output ?? 0,
+                msg.usage.cost?.total ?? 0,
+              )
+            }
           }
         }
+
+        // Recalculate totals from the Map to ensure absolute consistency
+        let ti = 0,
+          to = 0,
+          tc = 0
+        for (const u of messageUsageMap.values()) {
+          ti += u.input
+          to += u.output
+          tc += u.cost
+        }
+        totalInput = ti
+        totalOutput = to
+        totalCost = tc
       } catch (_) {}
-      baseStats = { input, output, cost }
-    }
-
-    const currentInput = currentMessage?.usage?.input ?? 0
-    const currentOutput = currentMessage?.usage?.output ?? 0
-    const currentCost = currentMessage?.usage?.cost?.total ?? 0
-
-    sessionStats = {
-      totalInput: baseStats.input + currentInput,
-      totalOutput: baseStats.output + currentOutput,
-      totalCost: baseStats.cost + currentCost,
     }
   }
 
   return {
     update,
-    getStats: () => sessionStats,
+    getStats: () => ({
+      totalInput,
+      totalOutput,
+      totalCost,
+    }),
   }
 }

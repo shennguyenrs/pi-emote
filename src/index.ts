@@ -225,6 +225,7 @@ export default function (pi: ExtensionAPI) {
   })
 
   pi.on('session_compact', async () => {
+    statsTracker.update(ctxRef)
     state.transitionTo('idle')
   })
 }
