@@ -1,5 +1,5 @@
-import { visibleWidth, truncateToWidth } from '@earendil-works/pi-tui'
-import type { Config } from './types'
+import { visibleWidth } from '@earendil-works/pi-tui'
+import type { Config, SessionStats } from './types'
 import type { RenderedFrame } from './renderer'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { formatTokens, truncateLine } from './utils'
@@ -14,6 +14,7 @@ export function buildInfoLines(
   theme: any,
   gitInfo: { branch: string | null; stats: string | null },
   extensionStatuses: string[],
+  stats: SessionStats,
 ): string[] {
   const lines: string[] = []
   if (!ctxRef) return lines
@@ -34,26 +35,13 @@ export function buildInfoLines(
     lines.push(`Context: ${tokens}/${window} (${pct})`)
   }
 
-  let totalInput = 0
-  let totalOutput = 0
-  let totalCost = 0
-  try {
-    for (const entry of ctxRef.sessionManager.getEntries()) {
-      if (entry.type === 'message' && entry.message.role === 'assistant') {
-        totalInput += entry.message.usage?.input ?? 0
-        totalOutput += entry.message.usage?.output ?? 0
-        totalCost += entry.message.usage?.cost?.total ?? 0
-      }
-    }
-  } catch (_) {}
-
   const usageParts: string[] = []
-  if (totalInput || totalOutput) {
+  if (stats.totalInput || stats.totalOutput) {
     usageParts.push(
-      `↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`,
+      `↑${formatTokens(stats.totalInput)} ↓${formatTokens(stats.totalOutput)}`,
     )
   }
-  usageParts.push(`$${totalCost.toFixed(3)}`)
+  usageParts.push(`$${stats.totalCost.toFixed(3)}`)
   lines.push(usageParts.join(theme.fg('muted', ' · ')))
 
   // Add CWD & Git Info
@@ -135,6 +123,7 @@ export interface WidgetDeps {
   getCtxRef: () => any
   getGitInfo: () => { branch: string | null; stats: string | null }
   getExtensionStatuses: () => string[]
+  getSessionStats: () => SessionStats
 }
 
 export function createWidgetFactory(deps: WidgetDeps) {
@@ -163,6 +152,7 @@ export function createWidgetFactory(deps: WidgetDeps) {
           theme,
           deps.getGitInfo(),
           deps.getExtensionStatuses(),
+          deps.getSessionStats(),
         )
 
         const lines: string[] = []

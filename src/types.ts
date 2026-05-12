@@ -32,6 +32,12 @@ export interface EmotesConfig {
   talk?: { weights?: Record<string, number> }
 }
 
+export interface SessionStats {
+  totalInput: number
+  totalOutput: number
+  totalCost: number
+}
+
 export interface FrameSet {
   stateDir: string
   files: string[]

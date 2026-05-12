@@ -11,7 +11,7 @@ import {
   getEffectiveCharacter,
 } from './config'
 import { createEmoteState } from './state'
-import type { EmoteState } from './types'
+import type { EmoteState, SessionStats } from './types'
 import { RendererManager } from './manager'
 import { createWidgetFactory } from './widget'
 
@@ -50,6 +50,24 @@ export default function (pi: ExtensionAPI) {
 
   let gitInfo = { branch: null as string | null, stats: null as string | null }
   let extensionStatuses: string[] = []
+  let sessionStats: SessionStats = { totalInput: 0, totalOutput: 0, totalCost: 0 }
+
+  function updateSessionStats(ctx: any) {
+    if (!ctx?.sessionManager) return
+    let input = 0
+    let output = 0
+    let cost = 0
+    try {
+      for (const entry of ctx.sessionManager.getEntries()) {
+        if (entry.type === 'message' && entry.message.role === 'assistant') {
+          input += entry.message.usage?.input ?? 0
+          output += entry.message.usage?.output ?? 0
+          cost += entry.message.usage?.cost?.total ?? 0
+        }
+      }
+    } catch (_) {}
+    sessionStats = { totalInput: input, totalOutput: output, totalCost: cost }
+  }
 
   async function refreshStatus(ctx: any, branchOverride?: string | null) {
     if (!ctx?.cwd) return
@@ -85,6 +103,7 @@ export default function (pi: ExtensionAPI) {
     getCtxRef: () => ctxRef,
     getGitInfo: () => gitInfo,
     getExtensionStatuses: () => extensionStatuses,
+    getSessionStats: () => sessionStats,
   })
 
   // --- Events ---
@@ -98,6 +117,7 @@ export default function (pi: ExtensionAPI) {
     manager.currentRenderer.resetCache()
     state.clearAllTimers()
     ctxRef = ctx
+    updateSessionStats(ctx)
 
     ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
 
@@ -215,6 +235,7 @@ export default function (pi: ExtensionAPI) {
 
     if (state.getCurrentState() !== 'talk') state.transitionTo('talk')
     state.onTalkToken(text)
+    updateSessionStats(ctxRef)
   })
 
   pi.on('agent_end', async (event, ctx) => {
