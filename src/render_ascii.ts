@@ -7,75 +7,6 @@ import type { Renderer, RenderedFrame } from './renderer'
 import { randomPick } from './utils'
 import { getCharacterDir } from './config'
 
-// --- Minimal YAML parser for fallback.yaml ---
-// Handles: scalars, one-level maps, and arrays of scalars. No YAML library needed.
-
-interface AsciiFrameMap {
-  [state: string]: string | string[] | Record<string, string>
-}
-
-function parseSimpleYaml(text: string): AsciiFrameMap {
-  const result: AsciiFrameMap = {}
-  let currentKey: string | null = null
-  let currentObj: Record<string, string> | null = null
-  let currentArr: string[] | null = null
-
-  for (const raw of text.split('\n')) {
-    const line = raw.replace(/\r$/, '')
-
-    // Skip blank lines and comments
-    if (/^\s*$/.test(line) || /^\s*#/.test(line)) continue
-
-    // Top-level key (no indent)
-    const topMatch = line.match(/^(\w[\w-]*):\s*(.*)/)
-    if (topMatch) {
-      // Flush previous
-      if (currentKey !== null) {
-        if (currentArr) result[currentKey] = currentArr
-        else if (currentObj) result[currentKey] = currentObj
-      }
-      currentKey = topMatch[1]
-      currentArr = null
-      currentObj = null
-      const value = topMatch[2].replace(/^["']|["']$/g, '').trim()
-      if (value) {
-        // Inline scalar
-        result[currentKey] = value
-        currentKey = null
-      }
-      continue
-    }
-
-    if (currentKey === null) continue
-
-    // Array item (  - "value")
-    const arrMatch = line.match(/^\s+-\s+(.+)/)
-    if (arrMatch) {
-      if (!currentArr) currentArr = []
-      currentArr.push(arrMatch[1].replace(/^["']|["']$/g, '').trim())
-      continue
-    }
-
-    // Nested key (  key: "value")
-    const nestedMatch = line.match(/^\s+(\w[\w-]*):\s+(.+)/)
-    if (nestedMatch) {
-      if (!currentObj) currentObj = {}
-      currentObj[nestedMatch[1]] = nestedMatch[2]
-        .replace(/^["']|["']$/g, '')
-        .trim()
-      continue
-    }
-  }
-
-  // Flush last
-  if (currentKey !== null) {
-    if (currentArr) result[currentKey] = currentArr
-    else if (currentObj) result[currentKey] = currentObj
-  }
-
-  return result
-}
-
 // --- ASCII frame storage ---
 
 interface AsciiFrameSet {
@@ -87,7 +18,7 @@ interface AsciiFrameSet {
 
 /**
  * Text-based renderer for terminals without image protocol support.
- * Loads frames from emotes/ascii/fallback.yaml.
+ * Loads frames from emotes/ascii/fallback.json.
  */
 export class AsciiRenderer implements Renderer {
   private tuiRef: TUI | null = null
@@ -103,40 +34,46 @@ export class AsciiRenderer implements Renderer {
     const characterDir = getCharacterDir(extDir, 'ascii')
     if (!characterDir) return
 
-    const yamlPath = join(characterDir, 'fallback.yaml')
-    if (!existsSync(yamlPath)) return
+    const jsonPath = join(characterDir, 'fallback.json')
+    if (!existsSync(jsonPath)) return
 
-    const yamlText = readFileSync(yamlPath, 'utf-8')
-    const parsed = parseSimpleYaml(yamlText)
-    this.frames.clear()
+    try {
+      const jsonText = readFileSync(jsonPath, 'utf-8')
+      const parsed = JSON.parse(jsonText)
+      this.frames.clear()
 
-    for (const state of EMOTE_STATES) {
-      const value = parsed[state]
-      if (value === undefined) continue
+      for (const state of EMOTE_STATES) {
+        const value = parsed[state]
+        if (value === undefined) continue
 
-      const named = new Map<string, string>()
-      const names: string[] = []
+        const named = new Map<string, string>()
+        const names: string[] = []
 
-      if (typeof value === 'string') {
-        // Single frame — store as "default"
-        named.set('default', value)
-        names.push('default')
-      } else if (Array.isArray(value)) {
-        // Array of frames — index-named
-        for (let i = 0; i < value.length; i++) {
-          const name = `frame_${i}`
-          named.set(name, value[i])
-          names.push(name)
+        if (typeof value === 'string') {
+          // Single frame — store as "default"
+          named.set('default', value)
+          names.push('default')
+        } else if (Array.isArray(value)) {
+          // Array of frames — index-named
+          for (let i = 0; i < value.length; i++) {
+            const name = `frame_${i}`
+            named.set(name, value[i])
+            names.push(name)
+          }
+        } else {
+          // Named frames
+          for (const [name, text] of Object.entries(
+            value as Record<string, string>,
+          )) {
+            named.set(name, String(text))
+            names.push(name)
+          }
         }
-      } else {
-        // Named frames
-        for (const [name, text] of Object.entries(value)) {
-          named.set(name, text)
-          names.push(name)
-        }
+
+        this.frames.set(state, { named, names })
       }
-
-      this.frames.set(state, { named, names })
+    } catch (e) {
+      // ignore parse errors
     }
   }
 
