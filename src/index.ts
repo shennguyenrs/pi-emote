@@ -7,9 +7,11 @@ import {
   PathResolver,
   saveConfig,
 } from './config'
+import { createGitTracker } from './git'
 import { RendererManager } from './manager'
 import { createEmoteState } from './state'
-import type { EmoteState, SessionStats } from './types'
+import { createSessionStatsTracker } from './stats'
+import type { EmoteState } from './types'
 import { createWidgetFactory } from './widget'
 
 function toolNameToState(toolName: string): EmoteState {
@@ -42,77 +44,13 @@ export default function (pi: ExtensionAPI) {
     manager.currentRenderer,
   )
 
+  const statsTracker = createSessionStatsTracker()
+  const gitTracker = createGitTracker(pi)
+
   let ctxRef: any = null
+  let extensionStatuses: string[] = []
 
   manager.ensureCharacter(config.character, state)
-
-  let gitInfo = { branch: null as string | null, stats: null as string | null }
-  let extensionStatuses: string[] = []
-  let sessionStats: SessionStats = {
-    totalInput: 0,
-    totalOutput: 0,
-    totalCost: 0,
-  }
-
-  let baseStats = { input: 0, output: 0, cost: 0 }
-  let currentMessageId: string | null = null
-
-  function updateSessionStats(ctx: any, currentMessage?: any) {
-    if (!ctx?.sessionManager) return
-
-    // If a new message started, recalculate the base stats excluding the current message
-    if (currentMessage && currentMessage.id && currentMessage.id !== currentMessageId) {
-      currentMessageId = currentMessage.id
-      let input = 0, output = 0, cost = 0
-      try {
-        for (const entry of ctx.sessionManager.getEntries()) {
-          if (entry.type === 'message' && entry.message.role === 'assistant' && entry.message.id !== currentMessageId) {
-            input += entry.message.usage?.input ?? 0
-            output += entry.message.usage?.output ?? 0
-            cost += entry.message.usage?.cost?.total ?? 0
-          }
-        }
-      } catch (_) {}
-      baseStats = { input, output, cost }
-    } else if (!currentMessage) {
-      // Full recalculation (e.g., on session_start or agent_end)
-      currentMessageId = null
-      let input = 0, output = 0, cost = 0
-      try {
-        for (const entry of ctx.sessionManager.getEntries()) {
-          if (entry.type === 'message' && entry.message.role === 'assistant') {
-            input += entry.message.usage?.input ?? 0
-            output += entry.message.usage?.output ?? 0
-            cost += entry.message.usage?.cost?.total ?? 0
-          }
-        }
-      } catch (_) {}
-      baseStats = { input, output, cost }
-    }
-
-    const currentInput = currentMessage?.usage?.input ?? 0
-    const currentOutput = currentMessage?.usage?.output ?? 0
-    const currentCost = currentMessage?.usage?.cost?.total ?? 0
-
-    sessionStats = {
-      totalInput: baseStats.input + currentInput,
-      totalOutput: baseStats.output + currentOutput,
-      totalCost: baseStats.cost + currentCost,
-    }
-  }
-
-  async function refreshStatus(ctx: any, branchOverride?: string | null) {
-    if (!ctx?.cwd) return
-    try {
-      const statsResult = await pi
-        .exec('git', ['diff', '--shortstat'], { cwd: ctx.cwd })
-        .catch(() => null)
-      gitInfo = {
-        branch: branchOverride || gitInfo.branch,
-        stats: statsResult?.stdout.trim() || null,
-      }
-    } catch (e) {}
-  }
 
   function reloadCharacter(character: string) {
     config.character = character
@@ -133,9 +71,9 @@ export default function (pi: ExtensionAPI) {
       manager.setTui(tui)
     },
     getCtxRef: () => ctxRef,
-    getGitInfo: () => gitInfo,
+    getGitInfo: () => gitTracker.getInfo(),
     getExtensionStatuses: () => extensionStatuses,
-    getSessionStats: () => sessionStats,
+    getSessionStats: () => statsTracker.getStats(),
   })
 
   // --- Events ---
@@ -153,7 +91,7 @@ export default function (pi: ExtensionAPI) {
     manager.currentRenderer.resetCache()
     state.clearAllTimers()
     ctxRef = ctx
-    updateSessionStats(ctx)
+    statsTracker.update(ctx)
 
     ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
 
@@ -161,8 +99,7 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setFooter((tui, theme, footerData) => {
       const update = () => {
         const branch = footerData.getGitBranch()
-        gitInfo.branch = branch
-        refreshStatus(ctx, branch)
+        gitTracker.refreshStatus(ctx, branch)
       }
       update()
       const unsub = footerData.onBranchChange(() => {
@@ -227,7 +164,7 @@ export default function (pi: ExtensionAPI) {
   pi.on('message_update', async (event) => {
     if (event.message?.role !== 'assistant') return
 
-    updateSessionStats(ctxRef, event.message)
+    statsTracker.update(ctxRef, event.message)
 
     const streamEvent = event.assistantMessageEvent
     if (!streamEvent) return
@@ -265,8 +202,8 @@ export default function (pi: ExtensionAPI) {
     } else if (!['idle', 'hi', 'compact'].includes(state.getCurrentState())) {
       state.transitionTo('idle')
     }
-    updateSessionStats(ctx)
-    refreshStatus(ctx)
+    statsTracker.update(ctx)
+    gitTracker.refreshStatus(ctx)
   })
 
   pi.on('tool_execution_start', async (event) => {
@@ -280,7 +217,7 @@ export default function (pi: ExtensionAPI) {
     } else {
       state.transitionTo('read')
     }
-    refreshStatus(ctx)
+    gitTracker.refreshStatus(ctx)
   })
 
   pi.on('session_before_compact', async () => {

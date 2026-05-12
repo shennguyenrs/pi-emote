@@ -1,6 +1,6 @@
-import type { TUI } from '@earendil-works/pi-tui';
-import type { PathResolver } from './config';
-import type { EmoteState, EmotesConfig } from './types';
+import type { TUI } from '@earendil-works/pi-tui'
+import type { PathResolver } from './config'
+import type { EmoteState, EmotesConfig } from './types'
 
 /**
  * A rendered frame — either an image sequence (Kitty/iTerm2) or plain text lines.
