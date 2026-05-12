@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { TUI } from '@earendil-works/pi-tui'
 import {
   getImageDimensions,
@@ -86,7 +88,20 @@ export abstract class BaseImageRenderer implements Renderer {
   }
 
   private getBase64(state: EmoteState, name: string): string | null {
-    return this.frameMap.get(state)?.base64Cache.get(name) ?? null
+    const frameSet = this.frameMap.get(state)
+    if (!frameSet) return null
+
+    let b64 = frameSet.base64Cache.get(name)
+    if (!b64 && frameSet.files.includes(name)) {
+      try {
+        const data = readFileSync(join(frameSet.stateDir, name))
+        b64 = data.toString('base64')
+        frameSet.base64Cache.set(name, b64)
+      } catch (e) {
+        return null
+      }
+    }
+    return b64 ?? null
   }
 
   showFrame(state: EmoteState, name: string, force = false): boolean {
@@ -99,7 +114,7 @@ export abstract class BaseImageRenderer implements Renderer {
     const frameSet = this.frameMap.get(state)
     if (!frameSet || frameSet.files.length === 0) return false
     const file = randomPick(frameSet.files)
-    const b64 = frameSet.base64Cache.get(file)
+    const b64 = this.getBase64(state, file)
     if (!b64) return false
     return this.show(b64, force)
   }
@@ -114,7 +129,7 @@ export abstract class BaseImageRenderer implements Renderer {
     const activeWeights = emotesConfig.talk?.weights ?? weights
     if (activeWeights) {
       const file = weightedRandomPick(activeWeights)
-      const b64 = frameSet.base64Cache.get(file)
+      const b64 = this.getBase64('talk', file)
       if (!b64) return this.showRandomFrame('talk')
       return this.show(b64)
     }
@@ -126,7 +141,7 @@ export abstract class BaseImageRenderer implements Renderer {
     if (!frameSet) return false
     const closeFile = frameSet.files.find((f) => f.includes('close'))
     const file = closeFile ?? frameSet.files[0]!
-    const b64 = frameSet.base64Cache.get(file)
+    const b64 = this.getBase64('talk', file)
     if (!b64) return false
     return this.show(b64)
   }
@@ -135,7 +150,7 @@ export abstract class BaseImageRenderer implements Renderer {
     const frameSet = this.frameMap.get(state)
     if (!frameSet || frameSet.files.length === 0) return false
     const file = frameSet.files[index % frameSet.files.length]!
-    const b64 = frameSet.base64Cache.get(file)
+    const b64 = this.getBase64(state, file)
     if (!b64) return false
     return this.show(b64)
   }

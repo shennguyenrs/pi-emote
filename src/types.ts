@@ -34,6 +34,7 @@ export interface EmotesConfig {
 }
 
 export interface FrameSet {
+  stateDir: string
   files: string[]
   base64Cache: Map<string, string>
 }

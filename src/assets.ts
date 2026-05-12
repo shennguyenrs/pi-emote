@@ -19,14 +19,12 @@ export function discoverFrames(
     const files = readdirSync(stateDir)
       .filter((f) => f.endsWith('.png'))
       .sort()
-    const base64Cache = new Map<string, string>()
 
-    for (const file of files) {
-      const data = readFileSync(join(stateDir, file))
-      base64Cache.set(file, data.toString('base64'))
-    }
-
-    frameMap.set(state, { files, base64Cache })
+    frameMap.set(state, {
+      stateDir,
+      files,
+      base64Cache: new Map<string, string>(),
+    })
   }
 
   return frameMap
