@@ -1,8 +1,6 @@
 import { allocateImageId, deleteKittyImage } from '@earendil-works/pi-tui'
-import { BaseImageRenderer } from './render_image'
 import type { ImageDims } from './render_image'
-import { getCharacterDir } from './config'
-import { discoverFrames } from './assets'
+import { BaseImageRenderer } from './render_image'
 
 const CHUNK_SIZE = 4096
 

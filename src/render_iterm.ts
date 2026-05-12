@@ -1,7 +1,6 @@
 import { encodeITerm2 } from '@earendil-works/pi-tui'
-import { BaseImageRenderer } from './render_image'
 import type { ImageDims } from './render_image'
-import { discoverFrames } from './assets'
+import { BaseImageRenderer } from './render_image'
 
 /**
  * iTerm2 inline image protocol renderer.

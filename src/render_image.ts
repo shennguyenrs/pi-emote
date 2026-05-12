@@ -1,14 +1,15 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import type { TUI } from '@earendil-works/pi-tui'
 import {
-  getImageDimensions,
   calculateImageRows,
   getCellDimensions,
+  getImageDimensions,
 } from '@earendil-works/pi-tui'
-import type { EmoteState, EmotesConfig, FrameSet } from './types'
-import type { Renderer, RenderedFrame } from './renderer'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { discoverFrames } from './assets'
+import type { PathResolver } from './config'
+import type { RenderedFrame, Renderer } from './renderer'
+import type { EmoteState, EmotesConfig, FrameSet } from './types'
 import { randomPick, weightedRandomPick } from './utils'
 
 export interface ImageDims {
@@ -36,8 +37,8 @@ export abstract class BaseImageRenderer implements Renderer {
     this.tuiRef = tui
   }
 
-  loadFrames(character: string, extDir: string) {
-    this.frameMap = discoverFrames(extDir, character)
+  loadFrames(character: string, resolver: PathResolver) {
+    this.frameMap = discoverFrames(resolver, character)
   }
 
   getRenderedFrame(): RenderedFrame | null {

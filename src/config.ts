@@ -1,21 +1,66 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Config, EmotesConfig } from './types'
 
-const home = homedir()
-export const localEmotesDir = join(
-  process.cwd(),
-  '.pi',
-  'extensions',
-  'pi-emote',
-  'emotes',
-)
-export const globalEmotesDir = home
-  ? join(home, '.pi', 'agent', 'extensions', 'pi-emote', 'emotes')
-  : ''
+export class PathResolver {
+  readonly localEmotesDir: string
+  readonly globalEmotesDir: string
+  readonly defaultEmotesDir: string
 
-export function loadConfig(extDir: string): Config {
+  constructor(extDir: string) {
+    this.localEmotesDir = join(
+      process.cwd(),
+      '.pi',
+      'extensions',
+      'pi-emote',
+      'emotes',
+    )
+    const home = homedir()
+    this.globalEmotesDir = home
+      ? join(home, '.pi', 'agent', 'extensions', 'pi-emote', 'emotes')
+      : ''
+    this.defaultEmotesDir = join(extDir, 'emotes')
+  }
+
+  getSearchPaths(): string[] {
+    return [
+      this.localEmotesDir,
+      this.globalEmotesDir,
+      this.defaultEmotesDir,
+    ].filter(Boolean)
+  }
+
+  getConfigPaths(): string[] {
+    return this.getSearchPaths().map((p) => join(p, 'config.json'))
+  }
+
+  getCharacterDir(character: string): string | null {
+    if (!character) return null
+    for (const p of this.getSearchPaths()) {
+      const charPath = join(p, character)
+      if (existsSync(charPath)) return charPath
+    }
+    return null
+  }
+
+  getAllCharacters(): string[] {
+    const chars = new Set<string>()
+    for (const p of this.getSearchPaths()) {
+      if (existsSync(p)) {
+        try {
+          const dirs = readdirSync(p, { withFileTypes: true })
+            .filter((d) => d.isDirectory() && d.name !== '_unused')
+            .map((d) => d.name)
+          for (const d of dirs) chars.add(d)
+        } catch (e) {}
+      }
+    }
+    return Array.from(chars).sort()
+  }
+}
+
+export function loadConfig(resolver: PathResolver): Config {
   const defaults: Config = {
     enabled: true,
     size: 8,
@@ -36,101 +81,58 @@ export function loadConfig(extDir: string): Config {
     },
   }
 
-  const configPaths = [
-    join(localEmotesDir, 'config.json'),
-    ...(globalEmotesDir ? [join(globalEmotesDir, 'config.json')] : []),
-    ...(extDir ? [join(extDir, 'config.json')] : []),
-  ]
-
-  for (const configPath of configPaths) {
+  for (const configPath of resolver.getConfigPaths()) {
     if (existsSync(configPath)) {
       try {
         const userConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
         return { ...defaults, ...userConfig }
-      } catch (e) {
-        // ignore parse errors and try next
-      }
+      } catch (e) {}
     }
   }
 
   return defaults
 }
 
-export function saveConfig(extDir: string, config: Config) {
-  const possiblePaths = [
-    join(localEmotesDir, 'config.json'),
-    ...(globalEmotesDir ? [join(globalEmotesDir, 'config.json')] : []),
-    join(extDir, 'config.json'),
-  ]
+export function saveConfig(resolver: PathResolver, config: Config) {
+  const paths = resolver.getConfigPaths()
+  let targetPath = paths[paths.length - 1] // Default to extension dir
 
-  let targetPath = join(extDir, 'config.json')
-
-  for (const p of possiblePaths) {
+  for (const p of paths) {
     if (existsSync(p)) {
       targetPath = p
       break
     }
   }
 
-  if (!existsSync(targetPath) && existsSync(localEmotesDir)) {
-    targetPath = join(localEmotesDir, 'config.json')
-  }
-
   try {
     writeFileSync(targetPath, JSON.stringify(config, null, 2))
-  } catch (e) {
-    // ignore write errors
-  }
-}
-
-export function getCharacterDir(
-  extDir: string,
-  character: string,
-): string | null {
-  if (!character) return null
-
-  // 1. Local (.pi/emote)
-  const localPath = join(localEmotesDir, character)
-  if (existsSync(localPath)) return localPath
-
-  // 2. Global (~/.pi/agent/emote)
-  if (globalEmotesDir) {
-    const globalPath = join(globalEmotesDir, character)
-    if (existsSync(globalPath)) return globalPath
-  }
-
-  // 3. Extension Default
-  if (extDir) {
-    const extPath = join(extDir, 'emotes', character)
-    if (existsSync(extPath)) return extPath
-  }
-
-  return null
+  } catch (e) {}
 }
 
 export function loadEmotesConfig(
-  extDir: string,
+  resolver: PathResolver,
   character: string,
 ): EmotesConfig {
-  const characterDir = getCharacterDir(extDir, character)
+  const characterDir = resolver.getCharacterDir(character)
   if (!characterDir) return {}
 
   const emotesConfigPath = join(characterDir, 'emotes.json')
   if (existsSync(emotesConfigPath)) {
-    return JSON.parse(readFileSync(emotesConfigPath, 'utf-8'))
+    try {
+      return JSON.parse(readFileSync(emotesConfigPath, 'utf-8'))
+    } catch (e) {}
   }
   return {}
 }
 
 export function getEffectiveCharacter(
-  extDir: string,
+  resolver: PathResolver,
   config: Config,
   modelName?: string,
 ): string {
   if (modelName && config.modelCharacters?.[modelName]) {
     const preferred = config.modelCharacters[modelName]
-    // Verify the character exists
-    if (getCharacterDir(extDir, preferred)) {
+    if (resolver.getCharacterDir(preferred)) {
       return preferred
     }
   }

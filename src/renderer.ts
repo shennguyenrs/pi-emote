@@ -1,5 +1,6 @@
-import type { EmoteState, EmotesConfig } from './types'
-import type { TUI } from '@earendil-works/pi-tui'
+import type { TUI } from '@earendil-works/pi-tui';
+import type { PathResolver } from './config';
+import type { EmoteState, EmotesConfig } from './types';
 
 /**
  * A rendered frame — either an image sequence (Kitty/iTerm2) or plain text lines.
@@ -16,7 +17,7 @@ export interface Renderer {
   setTui(tui: TUI | null): void
 
   /** Load frames for an emote set. */
-  loadFrames(characterDir: string, extDir: string): void
+  loadFrames(character: string, resolver: PathResolver): void
 
   /** Get the current rendered frame (for the widget to read). */
   getRenderedFrame(): RenderedFrame | null

@@ -1,18 +1,15 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
-import { getCapabilities } from '@earendil-works/pi-tui'
-import { readdirSync, existsSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  loadConfig,
-  saveConfig,
-  localEmotesDir,
-  globalEmotesDir,
   getEffectiveCharacter,
+  loadConfig,
+  PathResolver,
+  saveConfig,
 } from './config'
+import { RendererManager } from './manager'
 import { createEmoteState } from './state'
 import type { EmoteState, SessionStats } from './types'
-import { RendererManager } from './manager'
 import { createWidgetFactory } from './widget'
 
 function toolNameToState(toolName: string): EmoteState {
@@ -34,10 +31,11 @@ export default function (pi: ExtensionAPI) {
     extDir = dirname(__dirname)
   } catch (e) {}
 
-  const config = loadConfig(extDir)
+  const resolver = new PathResolver(extDir)
+  const config = loadConfig(resolver)
   if (!config.enabled) return
 
-  const manager = new RendererManager(config, extDir)
+  const manager = new RendererManager(config, resolver)
   const state = createEmoteState(
     config,
     () => manager.currentEmotesConfig,
@@ -50,7 +48,11 @@ export default function (pi: ExtensionAPI) {
 
   let gitInfo = { branch: null as string | null, stats: null as string | null }
   let extensionStatuses: string[] = []
-  let sessionStats: SessionStats = { totalInput: 0, totalOutput: 0, totalCost: 0 }
+  let sessionStats: SessionStats = {
+    totalInput: 0,
+    totalOutput: 0,
+    totalCost: 0,
+  }
 
   function updateSessionStats(ctx: any) {
     if (!ctx?.sessionManager) return
@@ -84,7 +86,7 @@ export default function (pi: ExtensionAPI) {
 
   function reloadCharacter(character: string) {
     config.character = character
-    saveConfig(extDir, config)
+    saveConfig(resolver, config)
 
     manager.ensureCharacter(character, state)
 
@@ -111,7 +113,11 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_start', async (_event, ctx) => {
     if (!ctx.hasUI) return
 
-    const effectiveChar = getEffectiveCharacter(extDir, config, ctx.model?.name)
+    const effectiveChar = getEffectiveCharacter(
+      resolver,
+      config,
+      ctx.model?.name,
+    )
     manager.ensureCharacter(effectiveChar, state)
 
     manager.currentRenderer.resetCache()
@@ -135,7 +141,9 @@ export default function (pi: ExtensionAPI) {
       })
       return {
         render: () => {
-          extensionStatuses = Array.from(footerData.getExtensionStatuses().values())
+          extensionStatuses = Array.from(
+            footerData.getExtensionStatuses().values(),
+          )
           return [] // Return empty to avoid double display in footer
         },
         invalidate: () => {},
@@ -166,26 +174,7 @@ export default function (pi: ExtensionAPI) {
       const subCommand = parts[0]
 
       if (subCommand === 'switch') {
-        const extEmotesDir = join(extDir, 'emotes')
-        const getChars = (dir: string) => {
-          if (!dir || !existsSync(dir)) return []
-          try {
-            return readdirSync(dir, { withFileTypes: true })
-              .filter((d) => d.isDirectory() && d.name !== '_unused')
-              .map((d) => d.name)
-          } catch (e) {
-            return []
-          }
-        }
-
-        const characters = Array.from(
-          new Set([
-            ...getChars(localEmotesDir),
-            ...getChars(globalEmotesDir),
-            ...getChars(extEmotesDir),
-          ]),
-        ).sort()
-
+        const characters = resolver.getAllCharacters()
         if (characters.length === 0) {
           ctx.ui.notify('No characters found', 'error')
           return

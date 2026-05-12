@@ -1,14 +1,14 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { EmoteState, FrameSet } from './types'
+import type { PathResolver } from './config'
+import type { FrameSet } from './types'
 import { EMOTE_STATES } from './types'
-import { getCharacterDir } from './config'
 
 export function discoverFrames(
-  extDir: string,
+  resolver: PathResolver,
   character: string,
 ): Map<string, FrameSet> {
-  const characterDir = getCharacterDir(extDir, character)
+  const characterDir = resolver.getCharacterDir(character)
   const frameMap = new Map<string, FrameSet>()
   if (!characterDir) return frameMap
 

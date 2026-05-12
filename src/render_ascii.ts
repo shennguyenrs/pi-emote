@@ -1,11 +1,11 @@
-import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
 import type { TUI } from '@earendil-works/pi-tui'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { PathResolver } from './config'
+import type { RenderedFrame, Renderer } from './renderer'
 import type { EmoteState, EmotesConfig } from './types'
 import { EMOTE_STATES } from './types'
-import type { Renderer, RenderedFrame } from './renderer'
 import { randomPick } from './utils'
-import { getCharacterDir } from './config'
 
 // --- ASCII frame storage ---
 
@@ -30,8 +30,8 @@ export class AsciiRenderer implements Renderer {
     this.tuiRef = tui
   }
 
-  loadFrames(_character: string, extDir: string) {
-    const characterDir = getCharacterDir(extDir, 'ascii')
+  loadFrames(_character: string, resolver: PathResolver) {
+    const characterDir = resolver.getCharacterDir('ascii')
     if (!characterDir) return
 
     const jsonPath = join(characterDir, 'fallback.json')

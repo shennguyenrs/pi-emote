@@ -1,8 +1,8 @@
 import { getCapabilities } from '@earendil-works/pi-tui'
-import { KittyRenderer } from './render_kitty'
-import { ITermRenderer } from './render_iterm'
+import { loadEmotesConfig, type PathResolver } from './config'
 import { AsciiRenderer } from './render_ascii'
-import { loadEmotesConfig } from './config'
+import { ITermRenderer } from './render_iterm'
+import { KittyRenderer } from './render_kitty'
 import type { Renderer } from './renderer'
 import type { Config, EmotesConfig, EmoteStateController } from './types'
 
@@ -16,7 +16,7 @@ export class RendererManager {
 
   constructor(
     private config: Config,
-    private extDir: string,
+    private resolver: PathResolver,
   ) {
     this.renderer = this.detectRenderer()
   }
@@ -67,11 +67,11 @@ export class RendererManager {
     }
 
     if (character === 'ascii') {
-      this.renderer.loadFrames('', this.extDir)
+      this.renderer.loadFrames('', this.resolver)
       this.emotesConfig = {}
     } else {
-      this.emotesConfig = loadEmotesConfig(this.extDir, character)
-      this.renderer.loadFrames(character, this.extDir)
+      this.emotesConfig = loadEmotesConfig(this.resolver, character)
+      this.renderer.loadFrames(character, this.resolver)
     }
   }
 
