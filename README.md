@@ -15,10 +15,15 @@ Requires a Kitty-graphics-capable terminal.
   - **Session Stats:** Accumulated input/output tokens and estimated session cost.
   - **Environment Info:** Current Working Directory (CWD).
   - **Git Integration:** Shows current branch and pending change stats (`git diff --shortstat`).
-- **Cross-Terminal Support:**
-  - **Kitty:** Full high-resolution image support.
-  - **iTerm2:** High-resolution image support.
-  - **ASCII Fallback:** Automatically switches to text-based emotes in other terminals.
+
+## Cross-Terminal Support
+
+- **Kitty:** Full high-resolution image support.
+- **iTerm2:** High-resolution image support.
+- **Tmux:** Robust image rendering inside Tmux sessions using:
+  - **DCS Passthrough:** High-fidelity images for Kitty and iTerm2 (`allow-passthrough on` required).
+  - **Kitty Unicode Placeholders:** Allows images to behave like regular text, respecting pane boundaries and scrolling.
+- **Automatic Fallback:** Switches to text-based emotes in unsupported terminals or when a character lacks image frames (e.g., `ascii-bear`).
 
 ## Install
 
@@ -60,7 +65,12 @@ Example configuration:
     "gemini": "pi",
     "gpt": "ascii"
   },
-  "hideBelow": 80,
+  "hideBelow": 40,
+  "terminals": [
+    { "match": "tmux", "render": "auto" },
+    { "match": "zellij", "render": "ascii" },
+    { "match": "ghostty", "render": "kitty" }
+  ],
   "holdDuration": { "hi": 2000, "success": 1200, "failure": 1200 },
   "blinkInterval": [3000, 6000],
   "talkTickMs": 120,
@@ -79,8 +89,9 @@ Example configuration:
 
 - `size` — Image width/height in terminal cells (for image-capable terminals).
 - `character` — Global default character name. Use `"ascii"` to force text-mode.
-- `modelCharacters` — Map of model names to character names. Uses case-insensitive partial matching (e.g., `"gemini"` matches `"google/gemini-2.0"`). Wildcards (`*`) are also supported.
-- `hideBelow` — Hide the widget when terminal is narrower than this many columns.
+- `modelCharacters` — Map of model names to character names.
+- `hideBelow` — Hide the widget when terminal is narrower than this many columns (default: `40`).
+- `terminals` — Custom terminal detection mappings. Protocol can be `kitty`, `kitty-unicode`, `iterm2`, `ascii`, or `auto`.
 - `holdDuration` — How long to stay in temporary states (`hi`, `success`, `failure`) in ms.
 - `idle` & `talk` — Global default animation settings for all characters.
 
