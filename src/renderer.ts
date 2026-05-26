@@ -8,6 +8,7 @@ import type { EmoteState, EmotesConfig } from './types'
 export type RenderedFrame =
   | { kind: 'image'; sequence: string; rows: number }
   | { kind: 'text'; lines: string[] }
+  | { kind: 'placeholder'; lines: string[]; rows: number }
 
 /**
  * Renderer interface — abstracts how emote frames are loaded, stored, and displayed.

@@ -13,12 +13,25 @@ export const EMOTE_STATES = [
 
 export type EmoteState = (typeof EMOTE_STATES)[number]
 
+export interface TerminalMapping {
+  match: string
+  render: 'kitty' | 'kitty-unicode' | 'iterm2' | 'ascii' | 'auto'
+}
+
+export interface ResolvedRenderer {
+  protocol: 'kitty' | 'kitty-unicode' | 'iterm2' | 'ascii'
+  multiplexer: 'tmux' | 'screen' | 'zellij' | null
+  warning: string | null
+  warningLevel: 'warning' | 'info'
+}
+
 export interface Config {
   enabled: boolean
   size: number
   character: string
   modelCharacters?: Record<string, string>
   hideBelow: number
+  terminals: TerminalMapping[]
   holdDuration: { hi: number; success: number; failure: number }
   blinkInterval: [number, number]
   talkTickMs: number
