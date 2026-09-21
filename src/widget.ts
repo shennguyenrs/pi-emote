@@ -1,8 +1,19 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import type { Config, SessionStats } from './types'
+import type { Config, SessionStats, WidgetColor } from './types'
 import type { RenderedFrame } from './renderer'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { formatTokens, truncateLine } from './utils'
+
+// --- Color styler ---
+
+function colorStyler(
+  color: WidgetColor,
+  thinkingStyler: (s: string) => string,
+  theme: any,
+): (s: string) => string {
+  if (color === 'thinking-level-color') return thinkingStyler
+  return (s: string) => theme.fg(color, s)
+}
 
 // --- Token formatting ---
 
@@ -25,7 +36,7 @@ export function buildInfoLines(
   if (model?.reasoning) {
     modelStr += ` • ${thinkingLevel}`
   }
-  lines.push(theme.bold(modelStr))
+  lines.push(modelStr)
 
   const usage = ctxRef.getContextUsage?.()
   if (usage) {
@@ -42,7 +53,7 @@ export function buildInfoLines(
     )
   }
   usageParts.push(`$${stats.totalCost.toFixed(3)}`)
-  lines.push(usageParts.join(theme.fg('muted', ' · ')))
+  lines.push(usageParts.join(' · '))
 
   // Add CWD & Git Info
   const home = process.env.HOME
@@ -50,23 +61,51 @@ export function buildInfoLines(
   if (home && cwd.startsWith(home)) {
     cwd = `~${cwd.slice(home.length)}`
   }
-  let combinedLine = theme.fg('muted', cwd)
+  let combinedLine = cwd
 
   if (gitInfo.branch) {
-    combinedLine +=
-      theme.fg('muted', ' · ') + theme.fg('muted', `(${gitInfo.branch})`)
+    combinedLine += ` · (${gitInfo.branch})`
     if (gitInfo.stats) {
-      combinedLine += ' ' + theme.fg('dim', gitInfo.stats)
+      combinedLine += ` ${gitInfo.stats}`
     }
   }
 
   if (extensionStatuses.length > 0) {
-    combinedLine += theme.fg('muted', ' · ') + extensionStatuses.join(' ')
+    combinedLine += ` · ${extensionStatuses.join(' ')}`
   }
 
   lines.push(combinedLine)
 
-  return lines.map((l) => truncateLine(l, width, config.size))
+  // Apply theme colors per line
+  const thinkingStyler =
+    (theme as any).getThinkingBorderColor?.(thinkingLevel) ??
+    ((s: string) => theme.fg('border', s))
+  const wt = config.theme ?? {}
+  const styleModel = (s: string) =>
+    theme.bold(
+      colorStyler(wt['model-name'] ?? 'accent', thinkingStyler, theme)(s),
+    )
+  const styleContext = colorStyler(
+    wt['token-info'] ?? 'muted',
+    thinkingStyler,
+    theme,
+  )
+  const styleStats = colorStyler(
+    wt['token-info'] ?? 'dim',
+    thinkingStyler,
+    theme,
+  )
+  const stylePwd = colorStyler(
+    wt['working-directory'] ?? 'muted',
+    thinkingStyler,
+    theme,
+  )
+  const styleFns = [styleModel, styleContext, styleStats, stylePwd]
+
+  return lines.map((l, i) => {
+    const colored = styleFns[i] ? styleFns[i](l) : l
+    return truncateLine(colored, width, config.size)
+  })
 }
 
 // --- Render helpers ---
@@ -75,9 +114,9 @@ function renderWidgetLines(
   frame: RenderedFrame,
   config: Config,
   infoLines: string[],
-  borderColor: (s: string) => string,
+  separatorColor: (s: string) => string,
 ): string[] {
-  const sep = borderColor('│')
+  const sep = separatorColor('│')
   const leftMargin = ' '
   const avatarPad = ' '.repeat(config.size)
 
@@ -144,9 +183,20 @@ export function createWidgetFactory(deps: WidgetDeps) {
         if (!frame) return []
 
         const thinkingLevel = pi.getThinkingLevel?.() ?? 'high'
-        const borderColor =
+        const thinkingStyler =
           (theme as any).getThinkingBorderColor?.(thinkingLevel) ??
           ((s: string) => theme.fg('border', s))
+        const wt = config.theme ?? {}
+        const borderColor = colorStyler(
+          wt.border ?? 'thinking-level-color',
+          thinkingStyler,
+          theme,
+        )
+        const separatorColor = colorStyler(
+          wt['vertical-separator'] ?? 'thinking-level-color',
+          thinkingStyler,
+          theme,
+        )
         const border = borderColor('─'.repeat(width))
 
         const infoLines = buildInfoLines(
@@ -162,7 +212,9 @@ export function createWidgetFactory(deps: WidgetDeps) {
 
         const lines: string[] = []
         lines.push(border)
-        lines.push(...renderWidgetLines(frame, config, infoLines, borderColor))
+        lines.push(
+          ...renderWidgetLines(frame, config, infoLines, separatorColor),
+        )
         lines.push(border)
 
         return lines

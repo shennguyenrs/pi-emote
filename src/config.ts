@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Config, EmoteMapping, EmotesConfig } from './types'
 import { log } from './log'
+import { DEFAULT_WIDGET_THEME, sanitizeWidgetTheme } from './theme'
 
 export class PathResolver {
   readonly localEmotesDir: string
@@ -87,18 +88,21 @@ export function loadConfig(resolver: PathResolver): Config {
         'talk_wide.png': 0.2,
       },
     },
+    theme: { ...DEFAULT_WIDGET_THEME },
   }
 
   for (const configPath of resolver.getConfigPaths()) {
     if (existsSync(configPath)) {
       try {
         const userConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
-        return { ...defaults, ...userConfig }
+        const merged = { ...defaults, ...userConfig }
+        merged.theme = sanitizeWidgetTheme(merged.theme)
+        return merged
       } catch (e) {}
     }
   }
 
-  return defaults
+  return { ...defaults, theme: { ...DEFAULT_WIDGET_THEME } }
 }
 
 export function saveConfig(resolver: PathResolver, config: Config) {
