@@ -3,6 +3,52 @@ import type { Config, SessionStats, WidgetColor } from './types'
 import type { RenderedFrame } from './renderer'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { formatTokens, truncateLine } from './utils'
+import { resolveProgressColor } from './theme'
+
+// --- Progress bar ---
+
+function buildProgressBar(
+  usage: any,
+  latestCacheRead: number,
+  latestInput: number,
+  latestCacheWrite: number,
+): string {
+  const segments = 20
+  const subsPerSegment = 8
+  const totalSubs = segments * subsPerSegment
+  const percent = usage?.percent ?? 0
+
+  const filledSubs =
+    percent === 0
+      ? 0
+      : Math.max(Math.ceil((percent / 100) * totalSubs), subsPerSegment)
+
+  const totalPrompt = latestInput + latestCacheRead + latestCacheWrite
+  const cacheRatio = totalPrompt > 0 ? latestCacheRead / totalPrompt : 0
+  const cacheSubs = Math.floor(filledSubs * cacheRatio)
+
+  const eighthBlockChars = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█']
+
+  const bar = Array.from({ length: segments }, (_, i) => {
+    const segStart = i * subsPerSegment
+    const segEnd = segStart + subsPerSegment
+
+    const cacheInSeg = Math.max(0, Math.min(cacheSubs, segEnd) - segStart)
+    const inputInSeg = Math.max(
+      0,
+      Math.min(filledSubs, segEnd) - Math.max(cacheSubs, segStart),
+    )
+
+    if (cacheInSeg > 0 && inputInSeg > 0) return '█'
+    if (inputInSeg > 0) return eighthBlockChars[inputInSeg - 1]
+    if (cacheInSeg > 0) return '░'
+    return ' '
+  }).join('')
+
+  const pctStr = percent.toFixed(1)
+  const tokensStr = usage?.tokens != null ? formatTokens(usage.tokens) : '?'
+  return `⏵▕${bar}▏ ${tokensStr} (${pctStr}%)`
+}
 
 // --- Color styler ---
 
@@ -40,10 +86,14 @@ export function buildInfoLines(
 
   const usage = ctxRef.getContextUsage?.()
   if (usage) {
-    const pct = usage.percent !== null ? `${usage.percent.toFixed(1)}%` : '?'
-    const tokens = usage.tokens !== null ? formatTokens(usage.tokens) : '?'
-    const window = formatTokens(usage.contextWindow)
-    lines.push(`Context: ${tokens}/${window} (${pct})`)
+    lines.push(
+      buildProgressBar(
+        usage,
+        stats.latestCacheRead,
+        stats.latestInput,
+        stats.latestCacheWrite,
+      ),
+    )
   }
 
   const usageParts: string[] = []
@@ -52,6 +102,11 @@ export function buildInfoLines(
       `↑${formatTokens(stats.totalInput)} ↓${formatTokens(stats.totalOutput)}`,
     )
   }
+  const latestPrompt =
+    stats.latestInput + stats.latestCacheRead + stats.latestCacheWrite
+  const cacheHitRate =
+    latestPrompt > 0 ? (stats.latestCacheRead / latestPrompt) * 100 : 0
+  usageParts.push(`⇞${cacheHitRate.toFixed(1)}%`)
   usageParts.push(`$${stats.totalCost.toFixed(3)}`)
   lines.push(usageParts.join(' · '))
 
@@ -85,8 +140,12 @@ export function buildInfoLines(
     theme.bold(
       colorStyler(wt['model-name'] ?? 'accent', thinkingStyler, theme)(s),
     )
-  const styleContext = colorStyler(
-    wt['token-info'] ?? 'muted',
+  const styleProgress = colorStyler(
+    resolveProgressColor(
+      usage?.percent ?? 0,
+      cacheHitRate,
+      wt['progress-bar'] ?? {},
+    ),
     thinkingStyler,
     theme,
   )
@@ -100,7 +159,7 @@ export function buildInfoLines(
     thinkingStyler,
     theme,
   )
-  const styleFns = [styleModel, styleContext, styleStats, stylePwd]
+  const styleFns = [styleModel, styleProgress, styleStats, stylePwd]
 
   return lines.map((l, i) => {
     const colored = styleFns[i] ? styleFns[i](l) : l

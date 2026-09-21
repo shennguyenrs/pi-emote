@@ -123,6 +123,9 @@ export interface SessionStats {
   totalInput: number
   totalOutput: number
   totalCost: number
+  latestInput: number
+  latestCacheRead: number
+  latestCacheWrite: number
 }
 
 export interface FrameSet {

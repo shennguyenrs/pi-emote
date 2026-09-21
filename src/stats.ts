@@ -5,21 +5,38 @@ export interface SessionStatsTracker {
   getStats: () => SessionStats
 }
 
+interface MessageUsage {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  cost: number
+}
+
 export function createSessionStatsTracker(): SessionStatsTracker {
-  const messageUsageMap = new Map<
-    string,
-    { input: number; output: number; cost: number }
-  >()
+  const messageUsageMap = new Map<string, MessageUsage>()
   let totalInput = 0
   let totalOutput = 0
   let totalCost = 0
+  let latestInput = 0
+  let latestCacheRead = 0
+  let latestCacheWrite = 0
 
-  function setUsage(id: string, input: number, output: number, cost: number) {
+  function setUsage(
+    id: string,
+    input: number,
+    output: number,
+    cacheRead: number,
+    cacheWrite: number,
+    cost: number,
+  ) {
     const prev = messageUsageMap.get(id)
     if (
       prev &&
       prev.input === input &&
       prev.output === output &&
+      prev.cacheRead === cacheRead &&
+      prev.cacheWrite === cacheWrite &&
       prev.cost === cost
     ) {
       return
@@ -31,10 +48,18 @@ export function createSessionStatsTracker(): SessionStatsTracker {
       totalCost -= prev.cost
     }
 
-    messageUsageMap.set(id, { input, output, cost })
+    messageUsageMap.set(id, { input, output, cacheRead, cacheWrite, cost })
     totalInput += input
     totalOutput += output
     totalCost += cost
+  }
+
+  function setLatest(id: string) {
+    const u = messageUsageMap.get(id)
+    if (!u) return
+    latestInput = u.input
+    latestCacheRead = u.cacheRead
+    latestCacheWrite = u.cacheWrite
   }
 
   function update(ctx: any, currentMessage?: any) {
@@ -45,6 +70,8 @@ export function createSessionStatsTracker(): SessionStatsTracker {
       const existing = messageUsageMap.get(currentMessage.id) || {
         input: 0,
         output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
         cost: 0,
       }
       const usage = currentMessage.usage
@@ -52,8 +79,11 @@ export function createSessionStatsTracker(): SessionStatsTracker {
         currentMessage.id,
         usage?.input ?? existing.input,
         usage?.output ?? existing.output,
+        usage?.cacheRead ?? existing.cacheRead,
+        usage?.cacheWrite ?? existing.cacheWrite,
         usage?.cost?.total ?? existing.cost,
       )
+      setLatest(currentMessage.id)
     } else {
       // Slow path: Sync with history and recalculate to prevent drift
       try {
@@ -66,6 +96,8 @@ export function createSessionStatsTracker(): SessionStatsTracker {
                 msg.id,
                 msg.usage.input ?? 0,
                 msg.usage.output ?? 0,
+                msg.usage.cacheRead ?? 0,
+                msg.usage.cacheWrite ?? 0,
                 msg.usage.cost?.total ?? 0,
               )
             }
@@ -84,7 +116,16 @@ export function createSessionStatsTracker(): SessionStatsTracker {
         totalInput = ti
         totalOutput = to
         totalCost = tc
-      } catch (_) {}
+
+        // Recompute latest from the most-recent assistant message
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const e = entries[i]
+          if (e?.type === 'message' && e.message?.role === 'assistant') {
+            setLatest(e.message.id)
+            break
+          }
+        }
+      } catch {}
     }
   }
 
@@ -94,6 +135,9 @@ export function createSessionStatsTracker(): SessionStatsTracker {
       totalInput,
       totalOutput,
       totalCost,
+      latestInput,
+      latestCacheRead,
+      latestCacheWrite,
     }),
   }
 }
