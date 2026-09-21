@@ -74,6 +74,7 @@ export function loadConfig(resolver: PathResolver): Config {
       { match: 'screen', render: 'ascii' },
       { match: 'wezterm', render: 'iterm2' },
       { match: 'ghostty', render: 'kitty' },
+      { match: 'warpterminal', render: 'kitty' },
     ],
     holdDuration: { hi: 2000, success: 1200, failure: 1200 },
     blinkInterval: [3000, 6000],

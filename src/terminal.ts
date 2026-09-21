@@ -34,6 +34,7 @@ export function detectTerminalName(): string {
     return 'iterm2'
   if (termProgram === 'vscode') return 'vscode'
   if (termProgram === 'alacritty') return 'alacritty'
+  if (termProgram === 'warpterminal') return 'warpterminal'
 
   return 'unknown'
 }
