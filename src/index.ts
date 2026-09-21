@@ -74,10 +74,12 @@ export default function (pi: ExtensionAPI) {
     getExtensionStatuses: () => extensionStatuses,
     getSessionStats: () => statsTracker.getStats(),
     onRender: (ctx) => {
+      const thinkingLevel = pi.getThinkingLevel?.() ?? ''
       const effectiveChar = getEffectiveCharacter(
         resolver,
         config,
         ctx?.model?.name,
+        thinkingLevel,
       )
       manager.ensureCharacter(effectiveChar, state)
     },
@@ -88,10 +90,12 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_start', async (_event, ctx) => {
     if (!ctx.hasUI) return
 
+    const thinkingLevel = pi.getThinkingLevel?.() ?? ''
     const effectiveChar = getEffectiveCharacter(
       resolver,
       config,
       ctx.model?.name,
+      thinkingLevel,
     )
     manager.ensureCharacter(effectiveChar, state)
 
@@ -256,5 +260,17 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_compact', async () => {
     statsTracker.update(ctxRef)
     state.transitionTo('idle')
+  })
+
+  pi.on('thinking_level_select', async (_event, ctx) => {
+    if (!ctx.hasUI) return
+    const effectiveChar = getEffectiveCharacter(
+      resolver,
+      config,
+      ctx.model?.name,
+      _event.level,
+    )
+    manager.ensureCharacter(effectiveChar, state)
+    manager.currentRenderer.resetCache()
   })
 }

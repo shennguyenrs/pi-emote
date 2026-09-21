@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { Config, EmotesConfig } from './types'
+import type { Config, EmoteMapping, EmotesConfig } from './types'
+import { log } from './log'
 
 export class PathResolver {
   readonly localEmotesDir: string
@@ -132,11 +133,66 @@ export function loadEmotesConfig(
   return {}
 }
 
+function globToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
+export function resolveEmoteSet(
+  modelId: string,
+  thinkingLevel: string,
+  emotes: EmoteMapping[],
+): string {
+  let matched: string | null = null
+  let modelMatchCount = 0
+  let thinkingMatchCount = 0
+
+  for (const entry of emotes) {
+    const modelPattern = entry.model ?? '*'
+    const thinkingPattern = entry['thinking-level'] ?? '*'
+    if (
+      globToRegex(modelPattern).test(modelId) &&
+      globToRegex(thinkingPattern).test(thinkingLevel)
+    ) {
+      if (modelPattern !== '*') modelMatchCount++
+      if (thinkingPattern !== '*') thinkingMatchCount++
+      matched = entry['emote-set']
+    }
+  }
+
+  if (modelMatchCount > 1) {
+    log(
+      `[pi-emote] Warning: multiple model patterns matched model "${modelId}", using last match.`,
+    )
+  }
+  if (thinkingMatchCount > 1) {
+    log(
+      `[pi-emote] Warning: multiple thinking-level patterns matched "${thinkingLevel}", using last match.`,
+    )
+  }
+
+  return matched ?? 'default'
+}
+
 export function getEffectiveCharacter(
   resolver: PathResolver,
   config: Config,
   modelName?: string,
+  thinkingLevel?: string,
 ): string {
+  if (config.emotes && config.emotes.length > 0) {
+    const setName = resolveEmoteSet(
+      modelName ?? '',
+      thinkingLevel ?? '',
+      config.emotes,
+    )
+    if (resolver.getCharacterDir(setName)) {
+      return setName
+    }
+  }
+
   if (modelName && config.modelCharacters) {
     // Try exact match first
     if (config.modelCharacters[modelName]) {
@@ -146,13 +202,10 @@ export function getEffectiveCharacter(
       }
     }
 
-    // Try regex/pattern match
+    // Try glob match
     for (const [pattern, character] of Object.entries(config.modelCharacters)) {
       try {
-        const escaped = pattern
-          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*')
-        const regex = new RegExp(escaped, 'i')
+        const regex = globToRegex(pattern)
         if (regex.test(modelName)) {
           if (resolver.getCharacterDir(character)) {
             return character

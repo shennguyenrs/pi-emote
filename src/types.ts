@@ -25,11 +25,18 @@ export interface ResolvedRenderer {
   warningLevel: 'warning' | 'info'
 }
 
+export interface EmoteMapping {
+  model?: string
+  "thinking-level"?: string
+  "emote-set": string
+}
+
 export interface Config {
   enabled: boolean
   size: number
   character: string
   modelCharacters?: Record<string, string>
+  emotes?: EmoteMapping[]
   hideBelow: number
   terminals: TerminalMapping[]
   holdDuration: { hi: number; success: number; failure: number }
