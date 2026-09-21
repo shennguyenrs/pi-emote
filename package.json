@@ -1,6 +1,6 @@
 {
   "name": "pi-emote",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
   "author": "CGx <31814150+cgxeiji@users.noreply.github.com>",
   "pi": {
@@ -14,8 +14,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.74.0",
-    "@earendil-works/pi-tui": "^0.74.0",
+    "@earendil-works/pi-coding-agent": "^0.86.1",
+    "@earendil-works/pi-tui": "^0.86.1",
     "@types/node": "^25.6.0",
     "oxfmt": "^0.48.0",
     "typescript": "^6.0.3"
