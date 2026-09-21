@@ -21,8 +21,8 @@ export function randomInRange(min: number, max: number): number {
 
 export function formatTokens(count: number): string {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`
-  if (count >= 10_000) return `${Math.round(count / 1000)}k`
-  if (count >= 1_000) return `${(count / 1000).toFixed(1)}k`
+  if (count >= 10_000) return `${Math.round(count / 1000)}K`
+  if (count >= 1_000) return `${(count / 1000).toFixed(1)}K`
   return count.toString()
 }
 
