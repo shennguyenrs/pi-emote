@@ -10,8 +10,8 @@ import { randomPick } from './utils'
 // --- ASCII frame storage ---
 
 interface AsciiFrameSet {
-  /** Named frames (for states like idle, think, talk). */
-  named: Map<string, string>
+  /** Named frames — each value is an array of lines. */
+  named: Map<string, string[]>
   /** Ordered list of frame names (for cycling and random pick). */
   names: string[]
 }
@@ -46,26 +46,39 @@ export class AsciiRenderer implements Renderer {
         const value = parsed[state]
         if (value === undefined) continue
 
-        const named = new Map<string, string>()
+        const named = new Map<string, string[]>()
         const names: string[] = []
 
         if (typeof value === 'string') {
-          // Single frame — store as "default"
-          named.set('default', value)
+          // Single frame — wrap in array
+          named.set('default', [value])
           names.push('default')
         } else if (Array.isArray(value)) {
-          // Array of frames — index-named
-          for (let i = 0; i < value.length; i++) {
-            const name = `frame_${i}`
-            named.set(name, value[i])
-            names.push(name)
+          if (value.length > 0 && Array.isArray(value[0])) {
+            // Nested array (string[][]) — multi-line cycling frames
+            for (let i = 0; i < value.length; i++) {
+              const name = `frame_${i}`
+              named.set(name, value[i] as string[])
+              names.push(name)
+            }
+          } else {
+            // Flat array (string[]) — single-line cycling (back-compat)
+            for (let i = 0; i < value.length; i++) {
+              const name = `frame_${i}`
+              named.set(name, [value[i] as string])
+              names.push(name)
+            }
           }
         } else {
-          // Named frames
+          // Named frames (Record<string, string | string[]>)
           for (const [name, text] of Object.entries(
-            value as Record<string, string>,
+            value as Record<string, string | string[]>,
           )) {
-            named.set(name, String(text))
+            if (Array.isArray(text)) {
+              named.set(name, text as string[])
+            } else {
+              named.set(name, [String(text)])
+            }
             names.push(name)
           }
         }
@@ -81,10 +94,11 @@ export class AsciiRenderer implements Renderer {
     return this.currentFrame
   }
 
-  private show(text: string, force = false): boolean {
-    if (!force && text === this.lastShown) return true
-    this.lastShown = text
-    this.currentFrame = { kind: 'text', lines: text.split('\n') }
+  private show(lines: string[], force = false): boolean {
+    const key = lines.join('\n')
+    if (!force && key === this.lastShown) return true
+    this.lastShown = key
+    this.currentFrame = { kind: 'text', lines }
     this.tuiRef?.requestRender()
     return true
   }
@@ -94,31 +108,31 @@ export class AsciiRenderer implements Renderer {
     if (!frameSet) return false
 
     // Try exact match first
-    let text = frameSet.named.get(name)
-    if (!text) {
+    let lines = frameSet.named.get(name)
+    if (!lines) {
       // Strip .png extension (e.g. "idle.png" → "idle")
       const bare = name.replace(/\.png$/, '')
-      text = frameSet.named.get(bare)
+      lines = frameSet.named.get(bare)
       // Map image naming conventions to YAML keys:
       //   idle.png / think.png → "default"
       //   idle_blink.png       → "blink"
       //   think_hard.png       → "hard"
-      if (!text && bare === state) text = frameSet.named.get('default')
-      if (!text) {
+      if (!lines && bare === state) lines = frameSet.named.get('default')
+      if (!lines) {
         const suffix = bare.replace(`${state}_`, '')
-        if (suffix !== bare) text = frameSet.named.get(suffix)
+        if (suffix !== bare) lines = frameSet.named.get(suffix)
       }
     }
-    if (!text) return false
-    return this.show(text, force)
+    if (!lines) return false
+    return this.show(lines, force)
   }
 
   showRandomFrame(state: EmoteState, force = false): boolean {
     const frameSet = this.frames.get(state)
     if (!frameSet || frameSet.names.length === 0) return false
     const name = randomPick(frameSet.names)
-    const text = frameSet.named.get(name)!
-    return this.show(text, force)
+    const lines = frameSet.named.get(name)!
+    return this.show(lines, force)
   }
 
   showTalkFrame(
@@ -137,9 +151,9 @@ export class AsciiRenderer implements Renderer {
   showTalkCloseFrame(): boolean {
     const frameSet = this.frames.get('talk')
     if (!frameSet) return false
-    const text =
+    const lines =
       frameSet.named.get('close') ?? frameSet.named.get(frameSet.names[0]!)!
-    return this.show(text)
+    return this.show(lines)
   }
 
   showCycleFrame(state: EmoteState, index: number): boolean {

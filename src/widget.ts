@@ -169,6 +169,9 @@ export function buildInfoLines(
 
 // --- Render helpers ---
 
+const TEXT_CANVAS_COLS = 8
+const TEXT_CANVAS_ROWS = 4
+
 function renderWidgetLines(
   frame: RenderedFrame,
   config: Config,
@@ -177,7 +180,9 @@ function renderWidgetLines(
 ): string[] {
   const sep = separatorColor('│')
   const leftMargin = ' '
-  const avatarPad = ' '.repeat(config.size)
+  const avatarPad = ' '.repeat(
+    frame.kind === 'text' ? TEXT_CANVAS_COLS : config.size,
+  )
 
   let rowCount = 0
   let getAvatarCell: (i: number) => string
@@ -187,17 +192,18 @@ function renderWidgetLines(
     getAvatarCell = (i) => (i === 0 ? frame.sequence + avatarPad : avatarPad)
   } else {
     const emoteLines = frame.lines
-    const emoteRow = 2
-    rowCount = Math.max(emoteRow + emoteLines.length, infoLines.length, 4)
+    const canvasCols = TEXT_CANVAS_COLS
+    rowCount = Math.max(TEXT_CANVAS_ROWS, infoLines.length)
+    const emoteStart = Math.floor((rowCount - emoteLines.length) / 2)
     getAvatarCell = (i) => {
-      const emoteIdx = i - emoteRow
+      const emoteIdx = i - emoteStart
       const emote =
         emoteIdx >= 0 && emoteIdx < emoteLines.length
           ? emoteLines[emoteIdx]
           : ''
       if (!emote) return avatarPad
       const emoteWidth = visibleWidth(emote)
-      const totalPad = config.size - emoteWidth
+      const totalPad = canvasCols - emoteWidth
       const padLeft = totalPad > 0 ? ' '.repeat(Math.floor(totalPad / 2)) : ''
       const padRight = totalPad > 0 ? ' '.repeat(Math.ceil(totalPad / 2)) : ''
       return `${padLeft}${emote}${padRight}`
