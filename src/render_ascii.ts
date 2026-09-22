@@ -30,8 +30,10 @@ export class AsciiRenderer implements Renderer {
     this.tuiRef = tui
   }
 
-  loadFrames(_character: string, resolver: PathResolver) {
-    const characterDir = resolver.getCharacterDir('ascii')
+  loadFrames(character: string, resolver: PathResolver) {
+    const characterDir =
+      resolver.getCharacterDir(character) ||
+      resolver.getCharacterDir('ascii')
     if (!characterDir) return
 
     const jsonPath = join(characterDir, 'fallback.json')

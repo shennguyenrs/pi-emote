@@ -50,15 +50,12 @@ export default function (pi: ExtensionAPI) {
   let ctxRef: any = null
   let extensionStatuses: string[] = []
 
-  manager.ensureCharacter(config.character, state)
-
   function reloadCharacter(character: string) {
     config.character = character
     saveConfig(resolver, config)
 
     manager.ensureCharacter(character, state)
 
-    state.clearAllTimers()
     manager.currentRenderer.resetCache()
   }
 
@@ -90,6 +87,10 @@ export default function (pi: ExtensionAPI) {
   pi.on('session_start', async (_event, ctx) => {
     if (!ctx.hasUI) return
 
+    ctxRef = ctx
+    statsTracker.update(ctx)
+    state.setWidgetActive(true)
+
     const thinkingLevel = pi.getThinkingLevel?.() ?? ''
     const effectiveChar = getEffectiveCharacter(
       resolver,
@@ -100,9 +101,6 @@ export default function (pi: ExtensionAPI) {
     manager.ensureCharacter(effectiveChar, state)
 
     manager.currentRenderer.resetCache()
-    state.clearAllTimers()
-    ctxRef = ctx
-    statsTracker.update(ctx)
 
     ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
 
@@ -128,8 +126,6 @@ export default function (pi: ExtensionAPI) {
         dispose: unsub,
       }
     })
-
-    state.setWidgetActive(true)
   })
 
   pi.on('session_shutdown', async (_event, ctx) => {

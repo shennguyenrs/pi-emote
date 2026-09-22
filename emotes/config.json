@@ -1,12 +1,34 @@
 {
   "enabled": true,
   "size": 8,
-  "character": "ascii",
-  "modelCharacters": {
-    "gemini": "pi",
-    "gpt": "ascii"
-  },
+  "character": "aza_choi",
   "hideBelow": 80,
+  "terminals": [
+    {
+      "match": "zellij",
+      "render": "ascii"
+    },
+    {
+      "match": "tmux",
+      "render": "auto"
+    },
+    {
+      "match": "screen",
+      "render": "ascii"
+    },
+    {
+      "match": "wezterm",
+      "render": "iterm2"
+    },
+    {
+      "match": "ghostty",
+      "render": "kitty"
+    },
+    {
+      "match": "warpterminal",
+      "render": "kitty"
+    }
+  ],
   "holdDuration": {
     "hi": 2000,
     "success": 1200,
@@ -29,5 +51,22 @@
       "talk_mid.png": 0.35,
       "talk_wide.png": 0.2
     }
+  },
+  "theme": {
+    "model-name": "thinking-level-color",
+    "progress-bar": {
+      "default": "text",
+      "cache-hit": "success",
+      "cache-miss": "error",
+      "almost-full": "warning"
+    },
+    "token-info": "dim",
+    "working-directory": "warning",
+    "border": "thinking-level-color",
+    "vertical-separator": "thinking-level-color"
+  },
+  "modelCharacters": {
+    "gemini": "pi",
+    "gpt": "ascii"
   }
 }
