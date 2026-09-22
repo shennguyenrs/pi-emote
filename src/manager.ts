@@ -4,8 +4,6 @@ import { loadEmotesConfig, type PathResolver } from './config'
 import { AsciiRenderer } from './render_ascii'
 import { ITermRenderer } from './render_iterm'
 import { KittyRenderer } from './render_kitty'
-import { TmuxITermRenderer } from './render_tmux_iterm'
-import { TmuxKittyRenderer } from './render_tmux_kitty'
 import { TmuxKittyUnicodeRenderer } from './render_tmux_kitty_unicode'
 import type { Renderer } from './renderer'
 import { resolveRenderer } from './terminal'
@@ -45,23 +43,18 @@ export class RendererManager {
     const resolved = resolveRenderer(this.config.terminals || [], new Set())
     const { protocol, multiplexer } = resolved
     const size = this.config.size
+    const inTmux = multiplexer === 'tmux'
 
     if (protocol === 'kitty-unicode') {
       return new TmuxKittyUnicodeRenderer(size)
     }
 
     if (protocol === 'kitty') {
-      if (multiplexer === 'tmux') {
-        return new TmuxKittyRenderer(size)
-      }
-      return new KittyRenderer(size)
+      return new KittyRenderer(size, inTmux)
     }
 
     if (protocol === 'iterm2') {
-      if (multiplexer === 'tmux') {
-        return new TmuxITermRenderer(size)
-      }
-      return new ITermRenderer(size)
+      return new ITermRenderer(size, inTmux)
     }
 
     return new AsciiRenderer()

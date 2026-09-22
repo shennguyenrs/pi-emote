@@ -1,6 +1,7 @@
 import { allocateImageId, deleteKittyImage } from '@earendil-works/pi-tui'
 import type { ImageDims } from './render_image'
 import { BaseImageRenderer } from './render_image'
+import { wrapTmuxPassthrough } from './tmux'
 
 const CHUNK_SIZE = 4096
 
@@ -47,7 +48,10 @@ function buildKittySequence(
 export class KittyRenderer extends BaseImageRenderer {
   readonly imageId: number
 
-  constructor(size: number) {
+  constructor(
+    size: number,
+    private inTmux = false,
+  ) {
     super(size)
     this.imageId = allocateImageId()
   }
@@ -55,7 +59,7 @@ export class KittyRenderer extends BaseImageRenderer {
   protected encode(
     base64: string,
     _dims: ImageDims,
-    rows: number,
+    _rows: number,
     yOffset: number,
   ): string | null {
     const params: Record<string, string | number> = {
@@ -69,11 +73,16 @@ export class KittyRenderer extends BaseImageRenderer {
     if (yOffset > 0) {
       params.Y = yOffset
     }
-    return buildKittySequence(base64, params)
+    const raw = buildKittySequence(base64, params)
+    if (!this.inTmux) return raw
+
+    const del = `\x1b_Ga=d,d=I,i=${this.imageId},q=2\x1b\\`
+    return wrapTmuxPassthrough(del + raw)
   }
 
   dispose() {
-    process.stdout.write(deleteKittyImage(this.imageId))
+    const del = deleteKittyImage(this.imageId)
+    process.stdout.write(this.inTmux ? wrapTmuxPassthrough(del) : del)
     this.currentFrame = null
   }
 }

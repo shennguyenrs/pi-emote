@@ -59,27 +59,25 @@ export default function (pi: ExtensionAPI) {
     manager.currentRenderer.resetCache()
   }
 
+  function syncCharacter(modelName?: string, thinkingLevel?: string) {
+    const level = thinkingLevel ?? pi.getThinkingLevel?.() ?? ''
+    const effectiveChar = getEffectiveCharacter(
+      resolver,
+      config,
+      modelName ?? ctxRef?.model?.name,
+      level,
+    )
+    manager.ensureCharacter(effectiveChar, state)
+  }
+
   const widgetFactory = createWidgetFactory({
     pi,
     config,
-    getRenderedFrame: () => manager.currentRenderer.getRenderedFrame(),
-    setTui: (tui) => {
-      manager.setTui(tui)
-    },
-    getCtxRef: () => ctxRef,
-    getGitInfo: () => gitTracker.getInfo(),
+    manager,
+    gitTracker,
+    statsTracker,
+    getCtx: () => ctxRef,
     getExtensionStatuses: () => extensionStatuses,
-    getSessionStats: () => statsTracker.getStats(),
-    onRender: (ctx) => {
-      const thinkingLevel = pi.getThinkingLevel?.() ?? ''
-      const effectiveChar = getEffectiveCharacter(
-        resolver,
-        config,
-        ctx?.model?.name,
-        thinkingLevel,
-      )
-      manager.ensureCharacter(effectiveChar, state)
-    },
   })
 
   // --- Events ---
@@ -91,15 +89,7 @@ export default function (pi: ExtensionAPI) {
     statsTracker.update(ctx)
     state.setWidgetActive(true)
 
-    const thinkingLevel = pi.getThinkingLevel?.() ?? ''
-    const effectiveChar = getEffectiveCharacter(
-      resolver,
-      config,
-      ctx.model?.name,
-      thinkingLevel,
-    )
-    manager.ensureCharacter(effectiveChar, state)
-
+    syncCharacter(ctx.model?.name)
     manager.currentRenderer.resetCache()
 
     ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
@@ -260,13 +250,13 @@ export default function (pi: ExtensionAPI) {
 
   pi.on('thinking_level_select', async (_event, ctx) => {
     if (!ctx.hasUI) return
-    const effectiveChar = getEffectiveCharacter(
-      resolver,
-      config,
-      ctx.model?.name,
-      _event.level,
-    )
-    manager.ensureCharacter(effectiveChar, state)
+    syncCharacter(ctx.model?.name, _event.level)
+    manager.currentRenderer.resetCache()
+  })
+
+  pi.on('model_select', async (_event, ctx) => {
+    if (!ctx.hasUI) return
+    syncCharacter(_event.model?.name)
     manager.currentRenderer.resetCache()
   })
 }

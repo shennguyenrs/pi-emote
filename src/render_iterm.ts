@@ -1,6 +1,7 @@
 import { encodeITerm2 } from '@earendil-works/pi-tui'
 import type { ImageDims } from './render_image'
 import { BaseImageRenderer } from './render_image'
+import { wrapTmuxPassthrough } from './tmux'
 
 /**
  * iTerm2 inline image protocol renderer.
@@ -8,7 +9,10 @@ import { BaseImageRenderer } from './render_image'
 export class ITermRenderer extends BaseImageRenderer {
   private frameCounter = 0
 
-  constructor(size: number) {
+  constructor(
+    size: number,
+    private inTmux = false,
+  ) {
     super(size)
   }
 
@@ -19,16 +23,19 @@ export class ITermRenderer extends BaseImageRenderer {
     _yOffset: number,
   ): string | null {
     this.frameCounter++
-    return encodeITerm2(base64, {
+    const raw = encodeITerm2(base64, {
       width: this.size,
       height: 'auto',
       preserveAspectRatio: true,
       name: `emote-${this.frameCounter}`,
     })
+    if (!this.inTmux || !raw) return raw
+
+    const withST = raw.replace(/\x07$/, '\x1b\\')
+    return wrapTmuxPassthrough(`\x1b7${withST}\x1b8`)
   }
 
   dispose() {
-    // iTerm2 has no explicit image deletion mechanism
     this.currentFrame = null
   }
 }

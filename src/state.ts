@@ -26,44 +26,21 @@ export function createEmoteState(
   let cycleIndex = 0
   let cycleDirection = 1
   let holdNextState: EmoteState = 'idle'
-
-  // Talk state
-  let lastTokenTime = 0
   let talkMouthClosed = false
 
-  function clearAllTimers() {
-    const timeouts = [holdTimer, blinkTimer, talkGapTimer]
-    timeouts.forEach((t) => {
-      if (t) clearTimeout(t)
-    })
-    const intervals = [talkTimer, cycleTimer]
-    intervals.forEach((t) => {
-      if (t) clearInterval(t)
-    })
+  function clearTimers() {
+    if (holdTimer) clearTimeout(holdTimer)
+    if (blinkTimer) clearTimeout(blinkTimer)
+    if (talkGapTimer) clearTimeout(talkGapTimer)
+    if (talkTimer) clearInterval(talkTimer)
+    if (cycleTimer) clearInterval(cycleTimer)
     holdTimer = blinkTimer = talkGapTimer = null
-    talkTimer = cycleTimer = null
-  }
-
-  function clearStateTimers() {
-    const timeouts = [holdTimer, talkGapTimer]
-    timeouts.forEach((t) => {
-      if (t) clearTimeout(t)
-    })
-    const intervals = [talkTimer, cycleTimer]
-    intervals.forEach((t) => {
-      if (t) clearInterval(t)
-    })
-    holdTimer = talkGapTimer = null
     talkTimer = cycleTimer = null
   }
 
   function transitionTo(state: EmoteState) {
     if (!widgetActive) return
-    clearStateTimers()
-    if (currentState === 'idle' && blinkTimer) {
-      clearTimeout(blinkTimer)
-      blinkTimer = null
-    }
+    clearTimers()
     currentState = state
 
     switch (state) {
@@ -156,7 +133,6 @@ export function createEmoteState(
   }
 
   function enterTalk() {
-    lastTokenTime = Date.now()
     talkMouthClosed = false
 
     renderer.showTalkFrame(getEmotesConfig(), config.talk?.weights)
@@ -173,8 +149,6 @@ export function createEmoteState(
 
   function onTalkToken(_text: string) {
     if (currentState !== 'talk') return
-
-    lastTokenTime = Date.now()
 
     if (talkMouthClosed) {
       talkMouthClosed = false
@@ -227,7 +201,7 @@ export function createEmoteState(
     transitionTo,
     onTalkToken,
     endTalk,
-    clearAllTimers,
+    clearAllTimers: clearTimers,
     setWidgetActive: (active: boolean) => (widgetActive = active),
     getCurrentState: () => currentState,
     setHoldNextState: (state: EmoteState) => (holdNextState = state),

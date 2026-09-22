@@ -32,8 +32,7 @@ export class AsciiRenderer implements Renderer {
 
   loadFrames(character: string, resolver: PathResolver) {
     const characterDir =
-      resolver.getCharacterDir(character) ||
-      resolver.getCharacterDir('ascii')
+      resolver.getCharacterDir(character) || resolver.getCharacterDir('ascii')
     if (!characterDir) return
 
     const jsonPath = join(characterDir, 'fallback.json')

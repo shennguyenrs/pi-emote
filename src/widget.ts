@@ -2,6 +2,9 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import type { Config, SessionStats, WidgetColor } from './types'
 import type { RenderedFrame } from './renderer'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
+import type { RendererManager } from './manager'
+import type { GitTracker } from './git'
+import type { SessionStatsTracker } from './stats'
 import { formatTokens, truncateLine } from './utils'
 import { resolveProgressColor } from './theme'
 
@@ -222,29 +225,23 @@ function renderWidgetLines(
 export interface WidgetDeps {
   pi: ExtensionAPI
   config: Config
-  getRenderedFrame: () => RenderedFrame | null
-  setTui: (tui: any) => void
-  getCtxRef: () => any
-  getGitInfo: () => { branch: string | null; stats: string | null }
+  manager: RendererManager
+  gitTracker: GitTracker
+  statsTracker: SessionStatsTracker
+  getCtx: () => any
   getExtensionStatuses: () => string[]
-  getSessionStats: () => SessionStats
-  onRender?: (ctx: any) => void
 }
 
 export function createWidgetFactory(deps: WidgetDeps) {
-  return (_tui: any, theme: any) => {
-    deps.setTui(_tui)
+  return (tui: any, theme: any) => {
+    deps.manager.setTui(tui)
     return {
       render(width: number): string[] {
-        const { config, pi } = deps
-        const ctx = deps.getCtxRef()
+        const { config, pi, manager, gitTracker, statsTracker } = deps
 
         if (width < config.hideBelow) return []
 
-        // Trigger character update check every render
-        deps.onRender?.(ctx)
-
-        const frame = deps.getRenderedFrame()
+        const frame = manager.currentRenderer.getRenderedFrame()
         if (!frame) return []
 
         const thinkingLevel = pi.getThinkingLevel?.() ?? 'high'
@@ -267,12 +264,12 @@ export function createWidgetFactory(deps: WidgetDeps) {
         const infoLines = buildInfoLines(
           width,
           config,
-          deps.getCtxRef(),
+          deps.getCtx(),
           pi,
           theme,
-          deps.getGitInfo(),
+          gitTracker.getInfo(),
           deps.getExtensionStatuses(),
-          deps.getSessionStats(),
+          statsTracker.getStats(),
         )
 
         const lines: string[] = []
@@ -286,7 +283,7 @@ export function createWidgetFactory(deps: WidgetDeps) {
       },
       invalidate() {},
       dispose() {
-        deps.setTui(null)
+        deps.manager.setTui(null)
       },
     }
   }
