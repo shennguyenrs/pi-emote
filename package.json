@@ -1,6 +1,6 @@
 {
   "name": "@shennguyenrs/pi-emote",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Opinionated CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
   "author": "Shen Nguyen <shennguyen.redshinobi96@gmail.com>",
   "license": "MIT",
