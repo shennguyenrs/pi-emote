@@ -3,15 +3,8 @@ import {
   getImageDimensions,
   calculateImageRows,
 } from '@earendil-works/pi-tui'
-import type { TUI } from '@earendil-works/pi-tui'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import type { EmoteState, EmotesConfig, FrameSet } from './types'
-import type { Renderer, RenderedFrame } from './renderer'
-import { discoverFrames } from './assets'
+import { BaseImageRenderer } from './render_image'
 import { wrapTmuxPassthrough } from './tmux'
-import { log } from './log'
-import type { PathResolver } from './config'
 
 const PLACEHOLDER = '\u{10EEEE}'
 const CHUNK_SIZE = 4096
@@ -109,21 +102,6 @@ const ROW_DIACRITICS: string[] = [
   '\u06EC',
 ]
 
-function randomPick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!
-}
-
-function weightedRandomPick(weights: Record<string, number>): string {
-  const entries = Object.entries(weights)
-  const total = entries.reduce((sum, [, w]) => sum + w, 0)
-  let r = Math.random() * total
-  for (const [file, weight] of entries) {
-    r -= weight
-    if (r <= 0) return file
-  }
-  return entries[entries.length - 1]![0]
-}
-
 /**
  * Build the kitty graphics transmit sequence (with virtual placement U=1).
  * Handles chunking for large payloads. Wrapped in tmux passthrough.
@@ -198,36 +176,16 @@ function buildPlaceholderLines(
  * This makes the image behave like normal text — tmux constrains it to
  * the pane, and switching sessions clears it naturally.
  */
-export class TmuxKittyUnicodeRenderer implements Renderer {
-  private tuiRef: TUI | null = null
-  private frameMap: Map<EmoteState, FrameSet> = new Map()
-  private lastShownBase64: string | null = null
-  private currentFrame: RenderedFrame | null = null
-  private size: number
+export class TmuxKittyUnicodeRenderer extends BaseImageRenderer {
   private imageId: number
 
   constructor(size: number) {
-    this.size = size
+    super(size)
     // Random 24-bit image ID (required for truecolor encoding)
     this.imageId = Math.floor(Math.random() * 0xfffffe) + 1
   }
 
-  setTui(tui: TUI | null) {
-    this.tuiRef = tui
-  }
-
-  loadFrames(character: string, resolver: PathResolver) {
-    this.frameMap = discoverFrames(resolver, character) as Map<
-      EmoteState,
-      FrameSet
-    >
-  }
-
-  getRenderedFrame(): RenderedFrame | null {
-    return this.currentFrame
-  }
-
-  private show(base64: string, force = false): boolean {
+  protected show(base64: string, force = false): boolean {
     if (!force && base64 === this.lastShownBase64) return true
     this.lastShownBase64 = base64
 
@@ -246,81 +204,9 @@ export class TmuxKittyUnicodeRenderer implements Renderer {
     // Build placeholder grid as text lines
     const lines = buildPlaceholderLines(this.imageId, cols, rows)
 
-    log(
-      `TmuxKittyUnicodeRenderer.show: dims=${dims.widthPx}x${dims.heightPx}, cols=${cols}, rows=${rows}, imageId=${this.imageId}`,
-    )
-
     this.currentFrame = { kind: 'placeholder', lines, rows }
     this.tuiRef?.requestRender()
     return true
-  }
-
-  private getBase64(state: EmoteState, name: string): string | null {
-    const frameSet = this.frameMap.get(state)
-    if (!frameSet) return null
-
-    let b64 = frameSet.base64Cache.get(name)
-    if (!b64 && frameSet.files.includes(name)) {
-      try {
-        const data = readFileSync(join(frameSet.stateDir, name))
-        b64 = data.toString('base64')
-        frameSet.base64Cache.set(name, b64)
-      } catch (e) {
-        return null
-      }
-    }
-    return b64 ?? null
-  }
-
-  showFrame(state: EmoteState, name: string, force = false): boolean {
-    const b64 = this.getBase64(state, name)
-    if (!b64) return false
-    return this.show(b64, force)
-  }
-
-  showRandomFrame(state: EmoteState, force = false): boolean {
-    const frameSet = this.frameMap.get(state)
-    if (!frameSet || frameSet.files.length === 0) return false
-    const file = randomPick(frameSet.files)
-    const b64 = frameSet.base64Cache.get(file)
-    if (!b64) return false
-    return this.show(b64, force)
-  }
-
-  showTalkFrame(emotesConfig: EmotesConfig): boolean {
-    const frameSet = this.frameMap.get('talk')
-    if (!frameSet || frameSet.files.length === 0) return false
-
-    if (emotesConfig.talk?.weights) {
-      const file = weightedRandomPick(emotesConfig.talk.weights)
-      const b64 = frameSet.base64Cache.get(file)
-      if (!b64) return this.showRandomFrame('talk')
-      return this.show(b64)
-    }
-    return this.showRandomFrame('talk')
-  }
-
-  showTalkCloseFrame(): boolean {
-    const frameSet = this.frameMap.get('talk')
-    if (!frameSet) return false
-    const closeFile = frameSet.files.find((f) => f.includes('close'))
-    const file = closeFile ?? frameSet.files[0]!
-    const b64 = frameSet.base64Cache.get(file)
-    if (!b64) return false
-    return this.show(b64)
-  }
-
-  showCycleFrame(state: EmoteState, index: number): boolean {
-    const frameSet = this.frameMap.get(state)
-    if (!frameSet || frameSet.files.length === 0) return false
-    const file = frameSet.files[index % frameSet.files.length]!
-    const b64 = frameSet.base64Cache.get(file)
-    if (!b64) return false
-    return this.show(b64)
-  }
-
-  getCycleFrameCount(state: EmoteState): number {
-    return this.frameMap.get(state)?.files.length ?? 0
   }
 
   dispose() {
@@ -328,9 +214,5 @@ export class TmuxKittyUnicodeRenderer implements Renderer {
     const del = `\x1b_Ga=d,d=I,i=${this.imageId},q=2\x1b\\`
     process.stdout.write(wrapTmuxPassthrough(del))
     this.currentFrame = null
-  }
-
-  resetCache() {
-    this.lastShownBase64 = null
   }
 }

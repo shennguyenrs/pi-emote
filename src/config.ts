@@ -2,7 +2,6 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Config, EmoteMapping, EmotesConfig } from './types'
-import { log } from './log'
 import { DEFAULT_WIDGET_THEME, sanitizeWidgetTheme } from './theme'
 
 export class PathResolver {
@@ -52,7 +51,7 @@ export class PathResolver {
       if (existsSync(p)) {
         try {
           const dirs = readdirSync(p, { withFileTypes: true })
-            .filter((d) => d.isDirectory() && d.name !== '_unused')
+            .filter((d) => d.isDirectory())
             .map((d) => d.name)
           for (const d of dirs) chars.add(d)
         } catch (e) {}
@@ -151,8 +150,6 @@ export function resolveEmoteSet(
   emotes: EmoteMapping[],
 ): string {
   let matched: string | null = null
-  let modelMatchCount = 0
-  let thinkingMatchCount = 0
 
   for (const entry of emotes) {
     const modelPattern = entry.model ?? '*'
@@ -161,21 +158,8 @@ export function resolveEmoteSet(
       globToRegex(modelPattern).test(modelId) &&
       globToRegex(thinkingPattern).test(thinkingLevel)
     ) {
-      if (modelPattern !== '*') modelMatchCount++
-      if (thinkingPattern !== '*') thinkingMatchCount++
       matched = entry['emote-set']
     }
-  }
-
-  if (modelMatchCount > 1) {
-    log(
-      `[pi-emote] Warning: multiple model patterns matched model "${modelId}", using last match.`,
-    )
-  }
-  if (thinkingMatchCount > 1) {
-    log(
-      `[pi-emote] Warning: multiple thinking-level patterns matched "${thinkingLevel}", using last match.`,
-    )
   }
 
   return matched ?? 'default'

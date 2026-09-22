@@ -1,11 +1,11 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { visibleWidth, truncateToWidth } from '@earendil-works/pi-tui'
 import type { Config, SessionStats, WidgetColor } from './types'
 import type { RenderedFrame } from './renderer'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import type { RendererManager } from './manager'
 import type { GitTracker } from './git'
 import type { SessionStatsTracker } from './stats'
-import { formatTokens, truncateLine } from './utils'
+import { formatTokens } from './utils'
 import { resolveProgressColor } from './theme'
 
 // --- Progress bar ---
@@ -163,10 +163,12 @@ export function buildInfoLines(
     theme,
   )
   const styleFns = [styleModel, styleProgress, styleStats, stylePwd]
-
+  const infoWidth = width - config.size - 5
   return lines.map((l, i) => {
     const colored = styleFns[i] ? styleFns[i](l) : l
-    return truncateLine(colored, width, config.size)
+    return visibleWidth(colored) > infoWidth
+      ? truncateToWidth(colored, infoWidth, '…')
+      : colored
   })
 }
 

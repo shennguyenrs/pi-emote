@@ -7,7 +7,6 @@ export interface GitInfo {
 
 export interface GitTracker {
   refreshStatus: (ctx: any, branchOverride?: string | null) => Promise<void>
-  setBranch: (branch: string | null) => void
   getInfo: () => GitInfo
 }
 
@@ -27,9 +26,6 @@ export function createGitTracker(pi: ExtensionAPI): GitTracker {
 
   return {
     refreshStatus,
-    setBranch: (branch) => {
-      info.branch = branch
-    },
     getInfo: () => info,
   }
 }

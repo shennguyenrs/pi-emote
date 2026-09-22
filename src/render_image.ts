@@ -46,12 +46,14 @@ export abstract class BaseImageRenderer implements Renderer {
   }
 
   /** Encode base64 image data into a terminal escape sequence. */
-  protected abstract encode(
-    base64: string,
-    dims: ImageDims,
-    rows: number,
-    yOffset: number,
-  ): string | null
+  protected encode(
+    _base64: string,
+    _dims: ImageDims,
+    _rows: number,
+    _yOffset: number,
+  ): string | null {
+    return null
+  }
 
   /** Clean up protocol-specific resources. */
   abstract dispose(): void

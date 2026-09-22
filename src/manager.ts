@@ -1,5 +1,6 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { discoverFrames } from './assets'
 import { loadEmotesConfig, type PathResolver } from './config'
 import { AsciiRenderer } from './render_ascii'
 import { ITermRenderer } from './render_iterm'
@@ -8,20 +9,6 @@ import { TmuxKittyUnicodeRenderer } from './render_tmux_kitty_unicode'
 import type { Renderer } from './renderer'
 import { resolveRenderer } from './terminal'
 import type { Config, EmotesConfig, EmoteStateController } from './types'
-import { EMOTE_STATES } from './types'
-
-function hasImageFrames(characterDir: string): boolean {
-  for (const state of EMOTE_STATES) {
-    const stateDir = join(characterDir, state)
-    if (existsSync(stateDir)) {
-      try {
-        const files = readdirSync(stateDir).filter((f) => f.endsWith('.png'))
-        if (files.length > 0) return true
-      } catch (e) {}
-    }
-  }
-  return false
-}
 
 /**
  * Manages the lifecycle and switching of renderers and emote configurations.
@@ -40,8 +27,9 @@ export class RendererManager {
   }
 
   private detectRenderer(): Renderer {
-    const resolved = resolveRenderer(this.config.terminals || [], new Set())
-    const { protocol, multiplexer } = resolved
+    const { protocol, multiplexer } = resolveRenderer(
+      this.config.terminals || [],
+    )
     const size = this.config.size
     const inTmux = multiplexer === 'tmux'
 
@@ -82,7 +70,7 @@ export class RendererManager {
       character === 'ascii' ||
       (characterDir &&
         existsSync(join(characterDir, 'fallback.json')) &&
-        !hasImageFrames(characterDir))
+        discoverFrames(this.resolver, character).size === 0)
 
     let newRenderer: Renderer | null = null
 
