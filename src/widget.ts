@@ -139,10 +139,11 @@ export function buildInfoLines(
     (theme as any).getThinkingBorderColor?.(thinkingLevel) ??
     ((s: string) => theme.fg('border', s))
   const wt = config.theme ?? {}
-  const styleModel = (s: string) =>
-    theme.bold(
-      colorStyler(wt['model-name'] ?? 'accent', thinkingStyler, theme)(s),
-    )
+  const styleModel = colorStyler(
+    wt['model-name'] ?? 'accent',
+    thinkingStyler,
+    theme,
+  )
   const styleProgress = colorStyler(
     resolveProgressColor(
       usage?.percent ?? 0,

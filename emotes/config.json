@@ -34,10 +34,7 @@
     "success": 1200,
     "failure": 1200
   },
-  "blinkInterval": [
-    3000,
-    6000
-  ],
+  "blinkInterval": [3000, 6000],
   "talkTickMs": 120,
   "cycleMs": 500,
   "idle": {
@@ -61,7 +58,7 @@
       "almost-full": "warning"
     },
     "token-info": "dim",
-    "working-directory": "warning",
+    "working-directory": "dim",
     "border": "thinking-level-color",
     "vertical-separator": "thinking-level-color"
   },

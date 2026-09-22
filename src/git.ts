@@ -20,7 +20,19 @@ export function createGitTracker(pi: ExtensionAPI): GitTracker {
         .exec('git', ['diff', '--shortstat'], { cwd: ctx.cwd })
         .catch(() => null)
       info.branch = branchOverride || info.branch
-      info.stats = statsResult?.stdout.trim() || null
+      const raw = statsResult?.stdout.trim() || ''
+
+      if (raw) {
+        const insertions = raw.match(/(\d+)\s*insertions?\(\+\)/)
+        const deletions = raw.match(/(\d+)\s*deletions?\(-\)/)
+
+        info.stats =
+          insertions || deletions
+            ? `(+${insertions ? insertions[1] : 0},-${deletions ? deletions[1] : 0})`
+            : null
+      } else {
+        info.stats = null
+      }
     } catch (e) {}
   }
 
