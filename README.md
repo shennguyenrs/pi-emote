@@ -2,7 +2,7 @@
 
 **Live status dashboard & animated pixel-art emote** that lives in your pi TUI session. It provides a visual indicator of the agent's state while displaying critical session metadata like model info, context usage, token stats, git status, and extension statuses.
 
-![pi-emote demo](pi-emote-demo.gif)
+![pi-emote demo](https://raw.githubusercontent.com/shennguyenrs/pi-emote/main/pi-emote-demo.gif)
 
 Requires a terminal capable of Kitty graphics or iTerm2 inline images (or automatically falls back to ASCII text emotes).
 

@@ -4,6 +4,14 @@
   "description": "Opinionated CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
   "author": "Shen Nguyen <shennguyen.redshinobi96@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shennguyenrs/pi-emote.git"
+  },
+  "homepage": "https://github.com/shennguyenrs/pi-emote#readme",
+  "bugs": {
+    "url": "https://github.com/shennguyenrs/pi-emote/issues"
+  },
   "keywords": [
     "pi-package",
     "pi-extension",
