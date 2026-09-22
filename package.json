@@ -1,8 +1,25 @@
 {
-  "name": "pi-emote",
+  "name": "@shennguyenrs/pi-emote",
   "version": "0.3.0",
-  "description": "CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
-  "author": "CGx <31814150+cgxeiji@users.noreply.github.com>",
+  "description": "Opinionated CGx's pi-emote — Animated pixel-art emote widget for pi TUI",
+  "author": "Shen Nguyen <shennguyen.redshinobi96@gmail.com>",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pixel-art",
+    "emote",
+    "avatar",
+    "tui"
+  ],
+  "files": [
+    "src",
+    "emotes",
+    "README.md",
+    "LICENSE",
+    "CHARACTER_TEMPLATE.md",
+    "EXAMPLE_PROMPT.md"
+  ],
   "pi": {
     "extensions": [
       "./src/index.ts"

@@ -1,34 +1,36 @@
 # CGx's pi-emote
 
-**Live status dashboard & animated pixel-art emote** that lives in your pi TUI session. It provides a visual indicator of the agent's state while displaying critical session metadata like model info, context usage, and git status.
+**Live status dashboard & animated pixel-art emote** that lives in your pi TUI session. It provides a visual indicator of the agent's state while displaying critical session metadata like model info, context usage, token stats, git status, and extension statuses.
 
 ![pi-emote demo](pi-emote-demo.gif)
 
-Requires a Kitty-graphics-capable terminal.
+Requires a terminal capable of Kitty graphics or iTerm2 inline images (or automatically falls back to ASCII text emotes).
 
 ## Features
 
-- **Animated Emote:** Reacts to agent actions (thinking, talking, reading, writing, etc.).
-- **Status Dashboard:** Displays:
-  - **Model & Thinking Level:** See which model is active and its current reasoning depth.
-  - **Context Usage:** Real-time tracking of token usage vs. context window.
-  - **Session Stats:** Accumulated input/output tokens and estimated session cost.
-  - **Environment Info:** Current Working Directory (CWD).
-  - **Git Integration:** Shows current branch and pending change stats (`git diff --shortstat`).
+- **Animated Emote:** Reacts to agent actions (thinking, talking, reading, writing, compacting context, etc.) with blink and cycle animations.
+- **Status Dashboard (Placed above editor):** Displays:
+  - **Model & Thinking Depth:** Active model name and thinking/reasoning level styled with thinking-level colors.
+  - **Context Window Progress Bar:** Real-time visual bar representing context usage with breakdown of cached vs. input tokens and hit percentages.
+  - **Session Token & Cost Metrics:** Accumulated input (`↑`) and output (`↓`) tokens, cache hit rate (`⇄`), and estimated session cost.
+  - **Environment & Git Info:** Shortened CWD path (`~`), current Git branch, and pending diff changes (`git diff --shortstat`).
+  - **Extension Integration:** Aggregates status badges and messages from other active extensions.
+- **Dynamic Theming:** Configurable colors for all dashboard elements, including dynamic adaptation to the active thinking level.
 
 ## Cross-Terminal Support
 
-- **Kitty:** Full high-resolution image support.
-- **iTerm2:** High-resolution image support.
-- **Tmux:** Robust image rendering inside Tmux sessions using:
+- **Kitty / Ghostty / Warp:** Full high-resolution Kitty image graphics support.
+- **iTerm2 / WezTerm:** High-resolution iTerm2 inline image support.
+- **Tmux:** Robust rendering inside Tmux sessions:
   - **DCS Passthrough:** High-fidelity images for Kitty and iTerm2 (`allow-passthrough on` required).
   - **Kitty Unicode Placeholders:** Allows images to behave like regular text, respecting pane boundaries and scrolling.
-- **Automatic Fallback:** Switches to text-based emotes in unsupported terminals or when a character lacks image frames (e.g., `ascii-bear`).
+- **Zellij / Screen / Others:** Automatic fallback to text/ASCII-based emotes.
 
 ## Install
 
 ```bash
 pi install git:github.com/shennguyenrs/pi-emote
+pi install npm:@shennguyenrs/pi-emote
 ```
 
 ## States
@@ -43,39 +45,45 @@ pi install git:github.com/shennguyenrs/pi-emote
 | write   | `write` or `edit` tool                  |
 | tool    | Any other tool                          |
 | success | Successful tool execution               |
-| failure | Failed tool execution                   |
+| failure | Failed tool execution (e.g. bash error) |
 | compact | Context compaction                      |
 
 ## Config
 
 `config.json` is looked for in the following locations (highest precedence first):
 
-1. `.pi/extensions/pi-emote/emotes/config.json`
-2. `~/.pi/agent/extensions/pi-emote/emotes/config.json`
-3. Extension's built-in `emotes/config.json`
+1. `.pi/extensions/pi-emote/emotes/config.json` (Project-specific)
+2. `~/.pi/agent/extensions/pi-emote/emotes/config.json` (User global)
+3. Extension's built-in `emotes/config.json` (Default fallback)
 
-Example configuration:
+### Example Configuration
 
 ```json
 {
   "enabled": true,
   "size": 8,
-  "character": "pi",
-  "modelCharacters": {
-    "gemini": "pi",
-    "gpt": "ascii"
-  },
-  "hideBelow": 40,
+  "character": "aza_choi",
+  "hideBelow": 80,
   "terminals": [
-    { "match": "tmux", "render": "auto" },
     { "match": "zellij", "render": "ascii" },
-    { "match": "ghostty", "render": "kitty" }
+    { "match": "tmux", "render": "auto" },
+    { "match": "screen", "render": "ascii" },
+    { "match": "wezterm", "render": "iterm2" },
+    { "match": "ghostty", "render": "kitty" },
+    { "match": "warpterminal", "render": "kitty" }
   ],
-  "holdDuration": { "hi": 2000, "success": 1200, "failure": 1200 },
+  "holdDuration": {
+    "hi": 2000,
+    "success": 1200,
+    "failure": 1200
+  },
   "blinkInterval": [3000, 6000],
   "talkTickMs": 120,
   "cycleMs": 500,
-  "idle": { "default": "idle.png", "blink": "idle_blink.png" },
+  "idle": {
+    "default": "idle.png",
+    "blink": "idle_blink.png"
+  },
   "talk": {
     "weights": {
       "talk_close.png": 0.15,
@@ -83,53 +91,96 @@ Example configuration:
       "talk_mid.png": 0.35,
       "talk_wide.png": 0.2
     }
-  }
+  },
+  "theme": {
+    "model-name": "thinking-level-color",
+    "progress-bar": {
+      "default": "text",
+      "cache-hit": "success",
+      "cache-miss": "error",
+      "almost-full": "warning"
+    },
+    "token-info": "dim",
+    "working-directory": "dim",
+    "border": "thinking-level-color",
+    "vertical-separator": "thinking-level-color"
+  },
+  "modelCharacters": {
+    "gemini*": "pi",
+    "gpt*": "ascii"
+  },
+  "emotes": [
+    {
+      "model": "*claude*",
+      "thinking-level": "high",
+      "emote-set": "aza_choi"
+    }
+  ]
 }
 ```
 
-- `size` — Image width/height in terminal cells (for image-capable terminals).
-- `character` — Global default character name. Use `"ascii"` to force text-mode.
-- `modelCharacters` — Map of model names to character names.
-- `hideBelow` — Hide the widget when terminal is narrower than this many columns (default: `40`).
-- `terminals` — Custom terminal detection mappings. Protocol can be `kitty`, `kitty-unicode`, `iterm2`, `ascii`, or `auto`.
-- `holdDuration` — How long to stay in temporary states (`hi`, `success`, `failure`) in ms.
-- `idle` & `talk` — Global default animation settings for all characters.
+### Configuration Options
 
-## Multi-Character Support
+- `enabled` (`boolean`): Enable or disable the emote widget.
+- `size` (`number`): Image width/height in terminal cells (for image-capable terminals).
+- `character` (`string`): Default character name (e.g. `"aza_choi"`, `"pi"`, or `"ascii"`).
+- `hideBelow` (`number`): Hide the widget when terminal width is narrower than this many columns (default: `80`).
+- `terminals` (`array`): Custom terminal detection mappings. Supported renderers: `"kitty"`, `"kitty-unicode"`, `"iterm2"`, `"ascii"`, `"auto"`.
+- `holdDuration` (`object`): Duration (ms) to hold temporary states (`hi`, `success`, `failure`).
+- `blinkInterval` (`[min, max]`): Random interval range (ms) between idle blinks.
+- `talkTickMs` / `cycleMs` (`number`): Animation tick intervals for talking and cycling states.
+- `theme` (`object`): Color theme overrides (`model-name`, `progress-bar`, `token-info`, `working-directory`, `border`, `vertical-separator`). Colors support standard theme colors or `"thinking-level-color"`.
+- `modelCharacters` (`object`): Map model name glob patterns to character names.
+- `emotes` (`array`): Advanced mappings based on model and thinking level.
 
-The extension scans three locations for characters:
+## Built-in Characters
 
-1.  **Local:** `.pi/extensions/pi-emote/emotes/` (project-specific)
-2.  **User:** `~/.pi/agent/extensions/pi-emote/emotes/` (global user-added)
-3.  **Default:** Built-in `emotes/` folder.
+- **`aza_choi`** (Default): Pixel-art character with rich animation frames across all states.
+- **`aza_choi_nobg`**: Transparent background variant of Aza Choi.
+- **`pi`**: The original pi mascot.
+- **`ascii`**: Text-based fallback emote set.
+- **`ascii-bear`**: Text-based bear emotes.
+- **`ascii-bot`**: Text-based robot emotes.
 
-### Switching Characters
+## Character Selection & Commands
 
-Switch between characters in chat using:
+Switch between characters or bind characters to models directly from chat:
 
-- `/emote switch` — Set the global default character.
-- `/emote set-model` — Set the character for the currently active model.
+- `/emote switch` — Opens an interactive selection menu to switch the global default character.
+- `/emote set-model` — Sets and persists the character associated with the currently active model.
 
-The selection is saved to your configuration. Model names are matched using case-insensitive partial matching (e.g., `"gemini"` matches `"google/gemini-pro"`). Wildcards (`*`) are also supported.
+## Custom Characters & Emotes
 
-## Custom Emotes
+The extension scans the following directories in order of precedence:
 
-Place PNGs into `~/.pi/agent/extensions/pi-emote/emotes/<character>/<state>/`. The extension auto-discovers frames per directory.
+1. **Local Project:** `.pi/extensions/pi-emote/emotes/<character>/`
+2. **User Global:** `~/.pi/agent/extensions/pi-emote/emotes/<character>/`
+3. **Built-in:** Extension's `emotes/<character>/`
 
-### Structure:
+### Folder Structure
 
-`~/.pi/agent/extensions/pi-emote/emotes/<character>/<state>/<frame>.png`
+```text
+emotes/<character>/
+├── emotes.json          # Optional character-specific animation settings
+├── idle/
+│   ├── idle.png
+│   └── idle_blink.png
+├── hi/
+├── think/
+├── talk/
+├── read/
+├── write/
+├── tool/
+├── success/
+├── failure/
+└── compact/
+```
 
-### Creating New Characters
+### Guides for Creating Characters
 
-To help you create consistent multi-frame emotes, we provide:
-
-1.  **[EXAMPLE_PROMPT.md](./EXAMPLE_PROMPT.md):** Sample prompts for Image-to-Image generation.
-2.  **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template for any character style.
-
-### ASCII Fallback Emotes
-
-Text-based emotes are defined in `emotes/ascii/fallback.json`. You can create your own by providing a character folder named `ascii` in your search path.
+- **[EXAMPLE_PROMPT.md](./EXAMPLE_PROMPT.md):** Sample prompts for Image-to-Image generation.
+- **[CHARACTER_TEMPLATE.md](./CHARACTER_TEMPLATE.md):** A generalized template for any character style.
+- **ASCII Emotes:** Defined in `<character>/fallback.json`.
 
 ## License
 
