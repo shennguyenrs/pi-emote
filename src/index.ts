@@ -31,7 +31,9 @@ export default function (pi: ExtensionAPI) {
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url))
     extDir = dirname(__dirname)
-  } catch (e) {}
+  } catch {
+    extDir = ''
+  }
 
   const resolver = new PathResolver(extDir)
   const config = loadConfig(resolver)
@@ -95,7 +97,7 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setWidget('emote', widgetFactory, { placement: 'aboveEditor' })
 
     ctx.ui.setWorkingVisible(false)
-    ctx.ui.setFooter((tui, theme, footerData) => {
+    ctx.ui.setFooter((tui, _theme, footerData) => {
       const update = () => {
         const branch = footerData.getGitBranch()
         gitTracker.refreshStatus(ctx, branch)
@@ -215,7 +217,7 @@ export default function (pi: ExtensionAPI) {
     state.onTalkToken(text)
   })
 
-  pi.on('agent_end', async (event, ctx) => {
+  pi.on('agent_end', async (_event, ctx) => {
     if (state.getCurrentState() === 'talk') {
       state.endTalk()
     } else if (!['idle', 'hi', 'compact'].includes(state.getCurrentState())) {

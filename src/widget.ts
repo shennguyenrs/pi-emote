@@ -238,11 +238,20 @@ export interface WidgetDeps {
 export function createWidgetFactory(deps: WidgetDeps) {
   return (tui: any, theme: any) => {
     deps.manager.setTui(tui)
+    let overlayOpen = false
     return {
       render(width: number): string[] {
         const { config, pi, manager, gitTracker, statsTracker } = deps
 
         if (width < config.hideBelow) return []
+
+        const hasOverlay = !!tui?.hasOverlayEntries
+        if (hasOverlay !== overlayOpen) {
+          overlayOpen = hasOverlay
+          if (hasOverlay) manager.currentRenderer.dispose()
+          else manager.currentRenderer.resetCache()
+        }
+        if (overlayOpen) return []
 
         const frame = manager.currentRenderer.getRenderedFrame()
         if (!frame) return []
